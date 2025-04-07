@@ -1,75 +1,110 @@
-import React, { useState } from 'react';
-import './App.css'; // CSSファイルをインポート (後述)
+import React, { useState, useEffect, useRef } from 'react'; // useEffect と useRef をインポート
+import './App.css';
 
-// メッセージの型定義
 interface Message {
-  id: number; // メッセージを識別するための一意なID
-  sender: 'user' | 'ai'; // 送信者（ユーザーかAIか）
-  text: string; // メッセージ本文
+  id: number;
+  sender: 'user' | 'ai';
+  text: string;
 }
 
 function App() {
-  // 入力中のメッセージを保持するstate
   const [inputValue, setInputValue] = useState<string>('');
-  // 会話のメッセージリストを保持するstate
   const [messages, setMessages] = useState<Message[]>([]);
-  // メッセージID用カウンター (簡易的な実装)
   const [messageIdCounter, setMessageIdCounter] = useState<number>(0);
+  const [isLoading, setIsLoading] = useState<boolean>(false); // ローディング状態を追加
+  const chatWindowRef = useRef<HTMLDivElement>(null); // チャットウィンドウの参照を追加
 
   /**
-   * 入力欄の変更をハンドルする関数
-   * @param event input要素のチェンジイベント
+   * チャットウィンドウを一番下にスクロールする関数
    */
+  const scrollToBottom = () => {
+    if (chatWindowRef.current) {
+      chatWindowRef.current.scrollTop = chatWindowRef.current.scrollHeight;
+    }
+  };
+
+  // messages 配列が更新されるたびに一番下にスクロール
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages]);
+
+
   const handleInputChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     setInputValue(event.target.value);
   };
 
   /**
-   * メッセージ送信をハンドルする関数
+   * メッセージ送信をハンドルする非同期関数
    */
-  const handleSendMessage = () => {
-    // 入力が空の場合は何もしない
-    if (!inputValue.trim()) {
+  const handleSendMessage = async () => {
+    const trimmedInput = inputValue.trim();
+    if (!trimmedInput || isLoading) { // ローディング中は送信しない
       return;
     }
 
-    // 新しいユーザーメッセージオブジェクトを作成
+    // ユーザーメッセージを作成してすぐに追加 (UIの反応を良くするため)
     const newUserMessage: Message = {
       id: messageIdCounter,
       sender: 'user',
-      text: inputValue.trim(),
+      text: trimmedInput,
     };
-
-    // メッセージリストに新しいメッセージを追加
-    // TODO: 本来はこの後、バックエンドAPIを呼び出す
     setMessages(prevMessages => [...prevMessages, newUserMessage]);
-
-    // メッセージIDカウンターをインクリメント
     setMessageIdCounter(prevCounter => prevCounter + 1);
+    setInputValue(''); // 入力欄をクリア
+    setIsLoading(true); // ローディング開始
 
-    // 入力欄をクリア
-    setInputValue('');
+    // --- バックエンドAPI呼び出し ---
+    const apiUrl = 'http://localhost:5129/api/chat';
 
-    // --- ここからAI応答のダミー処理 (将来的にAPI連携に置き換える) ---
-    // ダミーのAI応答を少し遅れて追加する
-    setTimeout(() => {
+    try {
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        // C#側のChatRequestレコードに合わせて 'Prompt' (大文字P) で送信
+        body: JSON.stringify({ Prompt: trimmedInput }),
+      });
+
+      if (!response.ok) {
+        // エラーレスポンスの場合
+        console.error('API Error Response:', response);
+        const errorText = await response.text(); // エラー内容をテキストで取得試行
+        throw new Error(`サーバーエラーが発生しました: ${response.status} ${errorText || response.statusText}`);
+      }
+
+      // 正常なレスポンスの場合 (JSONをパース)
+      const data: { reply: string } = await response.json(); // 応答の型を仮定
+
+      // AIの応答メッセージオブジェクトを作成
       const newAiMessage: Message = {
         id: messageIdCounter + 1, // ユーザーメッセージの次のID
         sender: 'ai',
-        text: `「${newUserMessage.text}」ですね！(これはダミー応答です)`,
+        text: data.reply, // APIからの応答テキストを使用
       };
+
+      // メッセージリストにAIの応答を追加
       setMessages(prevMessages => [...prevMessages, newAiMessage]);
       setMessageIdCounter(prevCounter => prevCounter + 2); // AIメッセージの分もIDを進める
-    }, 500); // 0.5秒後に応答
-     // --- ダミー処理ここまで ---
+
+    } catch (error) {
+      console.error('API Call Failed:', error);
+      // エラーメッセージをチャットに追加する (任意)
+      const errorMessage: Message = {
+        id: messageIdCounter + 1,
+        sender: 'ai',
+        text: `エラーが発生しました: ${error instanceof Error ? error.message : String(error)}`,
+      };
+      setMessages(prevMessages => [...prevMessages, errorMessage]);
+      setMessageIdCounter(prevCounter => prevCounter + 2);
+    } finally {
+      setIsLoading(false); // ローディング終了
+    }
+     // --- API呼び出しここまで ---
   };
 
-  /**
-   * Enterキーでも送信できるようにする関数
-   * @param event キーボードイベント
-   */
   const handleKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
-    if (event.key === 'Enter') {
+    if (event.key === 'Enter' && !isLoading) { // ローディング中はEnter無効
       handleSendMessage();
     }
   };
@@ -78,26 +113,38 @@ function App() {
   return (
     <div className="app-container">
       <h1>AIロールプレイチャット (仮)</h1>
-      <div className="chat-window">
+      {/* chatWindowにrefを設定 */}
+      <div className="chat-window" ref={chatWindowRef}>
         {messages.map((msg) => (
           <div key={msg.id} className={`message ${msg.sender}`}>
             <span className="sender-label">{msg.sender === 'user' ? 'あなた' : 'AI'}</span>
             <p className="message-text">{msg.text}</p>
           </div>
         ))}
+        {/* ローディング表示 */}
+        {isLoading && (
+          <div className="message ai loading">
+             <span className="sender-label">AI</span>
+             <p className="message-text">考え中...</p>
+          </div>
+        )}
       </div>
       <div className="input-area">
         <input
           type="text"
           value={inputValue}
           onChange={handleInputChange}
-          onKeyDown={handleKeyDown} // Enterキーでの送信を追加
+          onKeyDown={handleKeyDown}
           placeholder="メッセージを入力..."
+          disabled={isLoading} // ローディング中は入力不可
         />
-        <button onClick={handleSendMessage}>送信</button>
+        <button onClick={handleSendMessage} disabled={isLoading}> {/* ローディング中はボタン無効 */}
+          {isLoading ? '送信中...' : '送信'}
+        </button>
       </div>
     </div>
   );
 }
 
 export default App;
+
