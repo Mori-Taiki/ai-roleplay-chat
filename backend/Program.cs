@@ -1,3 +1,6 @@
+using Google.Cloud.AIPlatform.V1;
+using Google.Protobuf.WellKnownTypes;
+using ProtoValue = Google.Protobuf.WellKnownTypes.Value; // Value に ProtoValue という別名を付ける
 using Microsoft.AspNetCore.Mvc;
 using System.Net.Http.Headers; // Headersのため追加
 using System.Text.Json; // JsonSerializerのため追加 (必要に応じて)
@@ -117,6 +120,81 @@ app.MapPost("/api/chat", async (ChatRequest request, IHttpClientFactory clientFa
 .WithName("PostChatMessage");
 // .WithOpenApi(); // Swaggerを使う場合はコメント解除
 
+
+// Vertex AI クライアントを生成するヘルパーメソッド
+PredictionServiceClient CreatePredictionServiceClient()
+{
+    
+    // エンドポイントを指定 (例: us-central1)
+    string location = "us-central1"; // ★ 必要なら変更: プロジェクトや利用モデルに合わせる (例: "asia-northeast1")
+    string endpoint = $"{location}-aiplatform.googleapis.com";
+
+    // GOOGLE_APPLICATION_CREDENTIALS 環境変数が設定されていれば、
+    // Credential を明示的に指定しなくても、ライブラリが自動で認証情報を読み込みます。
+    return new PredictionServiceClientBuilder
+    {
+        Endpoint = endpoint
+        // Credential プロパティは指定不要！
+    }.Build();
+}
+
+// テスト用エンドポイント (例: /api/test-imagen)
+app.MapGet("/api/test-imagen", async () =>
+{
+    try
+    {
+        string projectId = "gen-lang-client-0605269968";
+        string location = "asia-northeast1";     // ★ クライアント作成時と同じリージョンを指定
+        // imagegeneration@006 モデル (2025/04時点) - 最新版はドキュメントで確認
+        string modelId = "imagegeneration@006"; // ★ 必要なら最新モデルIDに変更
+
+        // エンドポイント名の組み立て
+        var endpointName = EndpointName.FromProjectLocationPublisherModel(projectId, location, "google", modelId);
+
+        // PredictionServiceClient の作成 (環境変数が使われる)
+        var predictionServiceClient = CreatePredictionServiceClient();
+
+        // リクエストパラメータの作成
+        var prompt = "a hyperrealistic photo of a Shiba Inu dog wearing sunglasses and a tiny hat"; // 生成したい画像の指示
+        var instances = new List<ProtoValue>
+        {
+            ProtoValue.ForStruct(new Struct
+            {
+                Fields =
+                {
+                    { "prompt", ProtoValue.ForString(prompt) },
+                    { "sampleCount", ProtoValue.ForNumber(1) } // 生成する画像の枚数
+                    // 必要に応じて他のパラメータ (negativePrompt, aspectRatio など) を追加
+                    // 例: { "aspectRatio", Value.ForString("1:1") } // 正方形
+                }
+            })
+        };
+
+        // API呼び出し
+        Console.WriteLine($"Calling Vertex AI Imagen API (Project: {projectId}, Location: {location}, Model: {modelId})...");
+        PredictResponse response = await predictionServiceClient.PredictAsync(endpointName, instances, null); // parameters は null で試す
+
+        Console.WriteLine("API call successful!");
+
+        // レスポンスの確認 (まずは成功したかどうか)
+        int predictionCount = response.Predictions.Count;
+        Console.WriteLine($"Received {predictionCount} prediction(s).");
+        // 画像データは response.Predictions[0].StructValue.Fields["bytesBase64Encoded"].StringValue などに含まれます
+
+        // 簡単な成功メッセージを返す
+        return Results.Ok(new { Message = "Imagen API call successful!", PredictionCount = predictionCount });
+
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine($"Error calling Vertex AI Imagen API: {ex.Message}");
+        // エラーの詳細を出力 (デバッグ用)
+        Console.WriteLine(ex.ToString());
+        // エラーメッセージを返す
+        return Results.Problem($"Error calling Imagen API: {ex.Message}");
+    }
+}).WithName("TestImagen"); // エンドポイントに名前を付ける (任意)
+
 app.Run();
 
 
@@ -132,7 +210,8 @@ public class GeminiApiRequest
 {
     [JsonPropertyName("contents")]
     public required GeminiContent[] Contents { get; set; }
-
+    
+    [JsonPropertyName("generationConfig")] 
     public required GenerationConfig GenerationConfig { get; set; }
 }
 
