@@ -105,7 +105,7 @@ function App() {
     setIsLoading(true);
     setInputValue(''); 
 
-    const imageUrl = 'https://localhost:7000/api/test-imagen';
+    const imageUrl = 'https://localhost:7000/api/image/generate';
 
     try {
       const response = await fetch(imageUrl, {
