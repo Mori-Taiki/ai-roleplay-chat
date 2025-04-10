@@ -138,11 +138,79 @@ PredictionServiceClient CreatePredictionServiceClient()
     }.Build();
 }
 
-// テスト用エンドポイント (例: /api/test-imagen)
-app.MapGet("/api/test-imagen", async () =>
+app.MapPost("/api/test-imagen", async (ImageGenRequest request, IHttpClientFactory clientFactory, IConfiguration config) =>
 {
     try
     {
+        string japanesePrompt = request.Prompt;
+        if (string.IsNullOrWhiteSpace(japanesePrompt))
+        {
+            return Results.BadRequest(new { Message = "Prompt cannot be empty." });
+        }
+
+        // --- 1. Gemini API で日本語プロンプトを英語に翻訳 ---
+        Console.WriteLine($"Translating Japanese prompt: \"{japanesePrompt}\" using Gemini API...");
+        string englishPrompt = string.Empty; // 翻訳結果を格納する変数
+
+        var apiKey = config["Gemini:ApiKey"]; // User Secrets または appsettings から取得
+        if (string.IsNullOrEmpty(apiKey))
+        {
+            Console.Error.WriteLine("Gemini API Key is not configured.");
+            return Results.Problem("Gemini API Key is not configured.", statusCode: 500);
+        }
+        // 翻訳に適したモデルを選ぶ (flashで十分か、必要ならproなど)
+        var translationModel = "gemini-2.0-flash";
+        var geminiApiUrl = $"https://generativelanguage.googleapis.com/v1beta/models/{translationModel}:generateContent?key={apiKey}";
+        var httpClient = clientFactory.CreateClient();
+
+        // 翻訳用の指示を作成 (より良い指示に調整可能)
+        string translationInstruction = $"Translate the following Japanese text into a detailed English prompt suitable for an image generation AI (like Imagen). Focus on descriptive nouns and adjectives. Japanese text: \"{japanesePrompt}\"";
+
+        // Gemini APIリクエストを作成 (既存のモデルクラスを再利用)
+        var geminiRequest = new GeminiApiRequest
+        {
+            Contents = new[] { new GeminiContent { Parts = new[] { new GeminiPart { Text = translationInstruction } } } },
+            // 翻訳タスク向けの設定 (例: Temperatureを低めに)
+            GenerationConfig = new GenerationConfig { Temperature = 0.2, MaxOutputTokens = 256 } // トークン数は翻訳結果に合わせて調整
+        };
+
+        try // Gemini API呼び出し部分のエラーハンドリング
+        {
+            var geminiResponseRaw = await httpClient.PostAsJsonAsync(geminiApiUrl, geminiRequest);
+            
+            string rawJsonResponseBody = await geminiResponseRaw.Content.ReadAsStringAsync();
+            Console.WriteLine($"[DEBUG] Raw Gemini API Response Body for Translation: {rawJsonResponseBody}");
+
+            if (!geminiResponseRaw.IsSuccessStatusCode)
+            {
+                var errorContent = await geminiResponseRaw.Content.ReadAsStringAsync();
+                Console.Error.WriteLine($"Gemini API Error (Translation): {geminiResponseRaw.StatusCode} - {errorContent}");
+                // 翻訳失敗時は、エラーを返すか、あるいは日本語のまま進むか選択肢あり
+                // ここではエラーを返すことにする
+                return Results.Problem($"Failed to translate prompt via Gemini API: {geminiResponseRaw.StatusCode}", statusCode: 500);
+            }
+
+            var geminiResponse = await geminiResponseRaw.Content.ReadFromJsonAsync<GeminiApiResponse>();
+            // 翻訳結果のテキストを取得 (nullチェックとTrimを追加)
+            englishPrompt = geminiResponse?.Candidates?.FirstOrDefault()?.Content?.Parts?.FirstOrDefault()?.Text?.Trim() ?? string.Empty;
+
+            if (string.IsNullOrEmpty(englishPrompt))
+            {
+                 Console.Error.WriteLine("Gemini API returned empty translation for the prompt.");
+                 // 翻訳結果が空の場合もエラーとする
+                 return Results.Problem("Failed to get a valid translation from Gemini API.", statusCode: 500);
+            }
+             Console.WriteLine($"Translation successful: \"{englishPrompt}\"");
+        }
+        catch (Exception ex) // ネットワークエラーなどもキャッチ
+        {
+            Console.Error.WriteLine($"Error during Gemini API call for translation: {ex.Message}");
+            return Results.Problem($"Failed to translate prompt: {ex.Message}", statusCode: 500);
+        }
+        // --- 翻訳処理ここまで ---
+
+
+        // --- 2. 翻訳された英語プロンプトで Imagen API を呼び出す ---
         string projectId = "gen-lang-client-0605269968";
         string location = "asia-northeast1";     // ★ クライアント作成時と同じリージョンを指定
         // imagegeneration@006 モデル (2025/04時点) - 最新版はドキュメントで確認
@@ -154,15 +222,13 @@ app.MapGet("/api/test-imagen", async () =>
         // PredictionServiceClient の作成 (環境変数が使われる)
         var predictionServiceClient = CreatePredictionServiceClient();
 
-        // リクエストパラメータの作成
-        var prompt = "a hyperrealistic photo of a Shiba Inu dog wearing sunglasses and a tiny hat"; // 生成したい画像の指示
         var instances = new List<ProtoValue>
         {
             ProtoValue.ForStruct(new Struct
             {
                 Fields =
                 {
-                    { "prompt", ProtoValue.ForString(prompt) },
+                    { "prompt", ProtoValue.ForString(englishPrompt) },
                     { "sampleCount", ProtoValue.ForNumber(1) } // 生成する画像の枚数
                     // 必要に応じて他のパラメータ (negativePrompt, aspectRatio など) を追加
                     // 例: { "aspectRatio", Value.ForString("1:1") } // 正方形
@@ -172,18 +238,47 @@ app.MapGet("/api/test-imagen", async () =>
 
         // API呼び出し
         Console.WriteLine($"Calling Vertex AI Imagen API (Project: {projectId}, Location: {location}, Model: {modelId})...");
-        PredictResponse response = await predictionServiceClient.PredictAsync(endpointName, instances, null); // parameters は null で試す
+        PredictResponse imagenResponse = await predictionServiceClient.PredictAsync(endpointName, instances, null); // parameters は null で試す
 
         Console.WriteLine("API call successful!");
 
-        // レスポンスの確認 (まずは成功したかどうか)
-        int predictionCount = response.Predictions.Count;
-        Console.WriteLine($"Received {predictionCount} prediction(s).");
-        // 画像データは response.Predictions[0].StructValue.Fields["bytesBase64Encoded"].StringValue などに含まれます
+        // ▼▼▼ レスポンスから画像データを抽出して返す処理 ▼▼▼
+        if (imagenResponse.Predictions.Count > 0)
+        {
+            var firstPrediction = imagenResponse.Predictions[0]; // 最初の予測結果を取得
 
-        // 簡単な成功メッセージを返す
-        return Results.Ok(new { Message = "Imagen API call successful!", PredictionCount = predictionCount });
+            // 必要なフィールドが存在し、かつ正しい型かを確認しながら安全にアクセス
+            if (firstPrediction.KindCase == ProtoValue.KindOneofCase.StructValue &&
+                firstPrediction.StructValue.Fields.TryGetValue("bytesBase64Encoded", out var base64Value) &&
+                base64Value.KindCase == ProtoValue.KindOneofCase.StringValue &&
+                firstPrediction.StructValue.Fields.TryGetValue("mimeType", out var mimeTypeValue) &&
+                mimeTypeValue.KindCase == ProtoValue.KindOneofCase.StringValue)
+            {
+                // Base64データとMIMEタイプを取得
+                string base64Data = base64Value.StringValue;
+                string mimeType = mimeTypeValue.StringValue;
 
+                Console.WriteLine($"Image data received: MimeType={mimeType}, Base64Data Length={base64Data.Length}");
+
+                // 定義したレコードを使ってレスポンスを作成
+                var imageResponse = new ImageGenerationResponse(mimeType, base64Data);
+                return Results.Ok(imageResponse); // JSONとして返す
+            }
+            else
+            {
+                // 必要なフィールドが見つからない、または型が違う場合
+                Console.Error.WriteLine("Error: Could not find expected fields 'bytesBase64Encoded' (String) or 'mimeType' (String) in the prediction response struct.");
+                Console.Error.WriteLine($"Actual Prediction[0] structure: {firstPrediction}"); // デバッグ用に構造を出力
+                return Results.Problem("API response did not contain expected image data structure.");
+            }
+        }
+        else
+        {
+            // 予測結果が空の場合
+            Console.WriteLine("API response contained no predictions.");
+            return Results.Problem("API response contained no predictions.");
+        }
+        // ▲▲▲ レスポンス処理ここまで ▲▲▲
     }
     catch (Exception ex)
     {
@@ -198,9 +293,12 @@ app.MapGet("/api/test-imagen", async () =>
 app.Run();
 
 
-// --- フロントエンドとのリクエスト/レスポンス用のレコード定義  ---
+// Gemini APIとのリクエスト/レスポンス用レコード定義
 public record ChatRequest(string Prompt);
 public record ChatResponse(string Reply);
+// Imagen APIのリクエスト/レスポンス用レコード定義
+public record ImageGenRequest(string Prompt);
+public record ImageGenerationResponse(string MimeType, string Base64Data);
 
 
 // --- Gemini API 用のリクエスト/レスポンスモデル定義 ---

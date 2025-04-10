@@ -80,7 +80,7 @@ public/build/
 .deno.unstable
 
 # VSCode settings
-.vscode/*
+backend/.vscode/*
 !.vscode/settings.json
 !.vscode/tasks.json
 !.vscode/extensions.json
@@ -127,3 +127,6 @@ appsettings.Development.json
 
 # Test results
 TestResults/
+
+project_summary.txt
+gen-lang-client-0605269968-af99258408f7.json
