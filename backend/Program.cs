@@ -39,7 +39,7 @@ builder.Services.AddSingleton(provider =>
 builder.Services.AddScoped<IImagenService, ImagenService>();
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
-// builder.Services.AddSwaggerGen(); // Swagger を使用する場合はコメント解除
+builder.Services.AddSwaggerGen(); // Swagger を使用する場合はコメント解除
 
 // User Secrets (または環境変数、appsettings.json) から接続文字列を取得
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
@@ -54,6 +54,12 @@ builder.Services.AddDbContextPool<AppDbContext>(options => // または AddDbCon
 );
 
 var app = builder.Build();
+
+if (app.Environment.IsDevelopment())
+{
+    app.UseSwagger(); // Swagger ミドルウェアを有効化 (JSON エンドポイントを公開 /swagger/v1/swagger.json)
+    app.UseSwaggerUI(); // Swagger UI ミドルウェアを有効化 (HTML, JS, CSS を提供 /swagger)
+}
 
 if (app.Environment.IsDevelopment())
 {
