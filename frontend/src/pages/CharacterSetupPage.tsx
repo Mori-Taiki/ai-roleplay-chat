@@ -6,6 +6,7 @@ import { CreateCharacterProfileRequest } from "../models/CreateCharacterProfileR
 import { UpdateCharacterProfileRequest } from "../models/UpdateCharacterProfileRequest"; // データ送信時に使う
 
 const CharacterSetupPage: React.FC = () => {
+  const apiUrl = "https://localhost:7000/api/characterprofiles";
   // --- ルーター関連フック ---
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -105,7 +106,6 @@ const CharacterSetupPage: React.FC = () => {
 
     try {
       let response: Response;
-      const apiUrl = "https://localhost:7000/api/characterprofiles";
 
       if (isEditMode && characterId) {
         // --- 更新 (PUT) ---
@@ -192,13 +192,58 @@ const CharacterSetupPage: React.FC = () => {
     }
   };
 
-  // --- TODO: 削除処理 (編集モード時) ---
   const handleDelete = async () => {
-    if (!isEditMode || !id) return;
-    if (window.confirm(`キャラクター「${name}」を本当に削除しますか？`)) {
-      console.log(`キャラクター ID=${id} を削除します (未実装)`);
-      // TODO: DELETE /api/characterprofiles/:id を呼び出す
-      // 成功したら navigate('/characters'); などで一覧に戻る
+    // 編集モードでない、または characterId が確定していない場合は何もしない
+    if (!isEditMode || !characterId) return;
+
+    // 削除確認ダイアログを表示
+    // ユーザーが「キャンセル」を選んだら confirm は false を返す
+    if (
+      window.confirm(
+        `キャラクター「${
+          name || "未名のキャラクター"
+        }」(ID: ${characterId}) を本当に削除しますか？\nこの操作は元に戻せません。`
+      )
+    ) {
+      setIsSubmitting(true); // 処理開始 (ボタンを無効化するために流用)
+      setSubmitError(null); // 既存のエラーメッセージをクリア
+
+      try {
+        console.log(`Deleting character: ID=${characterId}`); // デバッグログ
+
+        // DELETE リクエストを送信
+        const response = await fetch(`${apiUrl}/${characterId}`, {
+          method: "DELETE",
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({
+            message: `削除リクエストに失敗しました (ステータス: ${response.status})`,
+          }));
+          throw new Error(
+            errorData.message ||
+              `削除リクエストに失敗しました (ステータス: ${response.status})`
+          );
+        }
+
+        // --- 削除成功時の処理 ---
+        alert(`キャラクター (ID: ${characterId}) を削除しました。`);
+        navigate("/characters"); // キャラクター一覧画面へ遷移
+      } catch (err) {
+        // fetch 自体のエラー、または上記 throw new Error で捕捉
+        const errorMessage =
+          err instanceof Error
+            ? err.message
+            : "不明な削除エラーが発生しました。";
+        setSubmitError(`削除エラー: ${errorMessage}`);
+        console.error("Delete character error:", err);
+        // エラーが発生した場合、ユーザーにメッセージを表示した上で現在の画面に留まる
+      } finally {
+        // 成功・失敗に関わらず、処理が終わったらボタンを有効に戻す
+        setIsSubmitting(false);
+      }
+    } else {
+      console.log("削除がキャンセルされました。");
     }
   };
 
@@ -355,7 +400,7 @@ const CharacterSetupPage: React.FC = () => {
 
         {/* 送信ボタンなど */}
         <div style={styles.buttonGroup}>
-          <button type="submit" style={styles.button}>
+          <button type="submit" style={styles.button} disabled={isSubmitting}>
             {isEditMode ? "更新" : "登録"}
           </button>
           {/* 編集モードの場合のみ削除ボタンを表示 */}
@@ -364,6 +409,7 @@ const CharacterSetupPage: React.FC = () => {
               type="button"
               onClick={handleDelete}
               style={{ ...styles.button, ...styles.deleteButton }}
+              disabled={isSubmitting}
             >
               削除
             </button>
