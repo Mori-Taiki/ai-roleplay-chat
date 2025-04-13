@@ -12,8 +12,8 @@ public record CreateCharacterProfileRequest(
     string? Tone,
     string? Backstory,
 
-    // 例: ExampleDialogue は JSON 文字列として受け取る想定
-    string? ExampleDialogue, // 必要であればバリデーション追加 (JSON形式かなど)
+    string? SystemPrompt,
+    string? ExampleDialogue,
 
     [Url(ErrorMessage = "有効なURLを入力してください。")] // URL形式のバリデーション
     string? AvatarImageUrl

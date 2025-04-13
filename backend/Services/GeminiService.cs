@@ -1,7 +1,4 @@
-using System.Net.Http.Json; // PostAsJsonAsync, ReadFromJsonAsync を使う
 using AiRoleplayChat.Backend.Models; // モデルクラスを使う
-using Microsoft.Extensions.Configuration; // IConfiguration を使う
-using System.Text; // StringBuilder など (エラーメッセージ用、必須ではない)
 using System.Text.Json; // JsonSerializerOptions を使う
 
 namespace AiRoleplayChat.Backend.Services; // 名前空間を確認・調整
@@ -33,7 +30,7 @@ public class GeminiService : IGeminiService // IGeminiService インターフェ
     /// <summary>
     /// 指定されたプロンプトに対するチャット応答を生成します。
     /// </summary>
-    public async Task<string> GenerateChatResponseAsync(string prompt, CancellationToken cancellationToken = default)
+    public async Task<string> GenerateChatResponseAsync(string prompt, string systemPrompt, CancellationToken cancellationToken = default)
     {
         // 設定ファイルからチャット用の設定を読み込む
         var model = _config["Gemini:ChatModel"] ?? "gemini-1.5-flash-latest";
@@ -44,7 +41,7 @@ public class GeminiService : IGeminiService // IGeminiService インターフェ
         };
 
         // 共通メソッドを呼び出す
-        return await CallGeminiApiAsync(model, prompt, generationConfig, cancellationToken);
+        return await CallGeminiApiAsync(model, prompt, systemPrompt, generationConfig, cancellationToken);
     }
 
     /// <summary>
@@ -60,17 +57,15 @@ public class GeminiService : IGeminiService // IGeminiService インターフェ
             MaxOutputTokens = _config.GetValue<int?>("Gemini:TranslationMaxOutputTokens") ?? 256
         };
 
-        // 翻訳指示プロンプトを作成 (ここでの指示内容は調整可能)
-        // string translationInstruction = $"Translate the following Japanese text into English: \"{japaneseText}\"";
         // 必要なら、より画像生成向けにする指示を追加
-        string translationInstruction = $"Translate the following Japanese text into a detailed English prompt suitable for an image generation AI (like Imagen). Focus on descriptive nouns and adjectives. Japanese text: \"{japaneseText}\"";
+        string translationInstruction = $"Translate the following Japanese text into a detailed English prompt suitable for an image generation AI (like Imagen). Focus on descriptive nouns and adjectives.";
 
         // 共通メソッドを呼び出す
-        return await CallGeminiApiAsync(model, translationInstruction, generationConfig, cancellationToken);
+        return await CallGeminiApiAsync(model, japaneseText, translationInstruction, generationConfig, cancellationToken);
     }
 
     // --- Gemini API を呼び出す共通プライベートメソッド ---
-    private async Task<string> CallGeminiApiAsync(string modelName, string promptText, GeminiGenerationConfig generationConfig, CancellationToken cancellationToken)
+    private async Task<string> CallGeminiApiAsync(string modelName, string promptText, string? systemPrompt, GeminiGenerationConfig generationConfig, CancellationToken cancellationToken)
     {
         // APIキーはコンストラクタで取得・チェック済み
         var geminiApiUrl = $"https://generativelanguage.googleapis.com/v1beta/models/{modelName}:generateContent?key={_apiKey}";
@@ -79,8 +74,15 @@ public class GeminiService : IGeminiService // IGeminiService インターフェ
         // リクエストボディを作成
         var geminiRequest = new GeminiApiRequest
         {
+            // TODO: 将来的には会話履歴も考慮して Contents を構築する必要がある
             Contents = new[] { new GeminiContent { Parts = new[] { new GeminiPart { Text = promptText } } } },
-            GenerationConfig = generationConfig
+            GenerationConfig = generationConfig,
+            // --- SystemInstruction の設定ロジックを追加 ---
+            SystemInstruction = !string.IsNullOrWhiteSpace(systemPrompt)
+                                // systemPrompt があれば GeminiContent オブジェクトを作成
+                                ? new GeminiContent { Parts = new[] { new GeminiPart { Text = systemPrompt } } }
+                                // なければ null を設定
+                                : null
         };
 
         HttpResponseMessage responseRaw;

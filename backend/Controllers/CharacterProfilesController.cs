@@ -11,28 +11,37 @@ namespace AiRoleplayChat.Backend.Controllers; // プロジェクトの実際の�
 public class CharacterProfilesController : ControllerBase
 {
     private readonly AppDbContext _context;
+    private readonly ILogger<ChatController> _logger;
 
-    public CharacterProfilesController(AppDbContext context)
+    public CharacterProfilesController(AppDbContext context, ILogger<ChatController> logger)
     {
         _context = context;
+        _logger = logger;
     }
 
     // POST: api/characterprofiles
     [HttpPost(Name = "CreateCharacterProfile")]
-    [ProducesResponseType(StatusCodes.Status201Created)]
+    [ProducesResponseType(typeof(CharacterProfileResponse), StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    public async Task<ActionResult<CharacterProfile>> CreateCharacterProfile(
+    public async Task<ActionResult<CharacterProfileResponse>> CreateCharacterProfile(
         [FromBody] CreateCharacterProfileRequest request)
     {
-        // --- SystemPrompt の生成ロジック (例) ---
-        // ここは要件に合わせて調整してください。
-        // Personality, Tone, Backstory が null や空文字の場合の考慮も必要です。
-        var systemPrompt = $"あなたはキャラクター「{request.Name}」です。\n" +
-                           $"性格: {request.Personality ?? "未設定"}\n" +
-                           $"口調: {request.Tone ?? "未設定"}\n" +
-                           $"背景: {request.Backstory ?? "未設定"}\n" +
-                           "ユーザーと自然で魅力的な対話を行ってください。";
-        // ------
+        string systemPrompt;
+        if (!string.IsNullOrWhiteSpace(request.SystemPrompt))
+        {
+            // リクエストに SystemPrompt が含まれていれば、それを使用する
+            systemPrompt = request.SystemPrompt;
+            _logger.LogInformation("Using user-provided SystemPrompt for character: {CharacterName}", request.Name);
+        }
+        else
+        {
+            _logger.LogInformation("Generating SystemPrompt based on other fields for character: {CharacterName}", request.Name);
+            systemPrompt = $"あなたはキャラクター「{request.Name}」です。\n" +
+                               $"性格: {request.Personality ?? "未設定"}\n" +
+                               $"口調: {request.Tone ?? "未設定"}\n" +
+                               $"背景: {request.Backstory ?? "未設定"}\n" +
+                               "ユーザーと自然で魅力的な対話を行ってください。";
+        }
 
         // 受け取った DTO と生成した SystemPrompt から CharacterProfile エンティティを作成
         var newProfile = new CharacterProfile
@@ -41,20 +50,32 @@ public class CharacterProfilesController : ControllerBase
             Personality = request.Personality,
             Tone = request.Tone,
             Backstory = request.Backstory,
-            SystemPrompt = systemPrompt, // 生成した SystemPrompt を設定
+            SystemPrompt = systemPrompt,
             ExampleDialogue = request.ExampleDialogue,
             AvatarImageUrl = request.AvatarImageUrl,
-            IsActive = true, // デフォルトで有効
+            IsActive = true,
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow,
-            UserId = 1 // もし UserId を追加しているなら、ここで設定（例: 認証情報から取得）
+            UserId = 1
         };
 
         // DbContext を通じてデータベースに追加
         _context.CharacterProfiles.Add(newProfile);
         await _context.SaveChangesAsync();
 
-        return CreatedAtAction(nameof(GetCharacterProfile), new { id = newProfile.Id }, newProfile);
+        var responseDto = new CharacterProfileResponse(
+            newProfile.Id,
+            newProfile.Name,
+            newProfile.Personality,
+            newProfile.Tone,
+            newProfile.Backstory,
+            newProfile.SystemPrompt,
+            newProfile.ExampleDialogue,
+            newProfile.AvatarImageUrl,
+            newProfile.IsActive
+        );
+
+        return CreatedAtAction(nameof(GetCharacterProfile), new { id = newProfile.Id }, responseDto);
     }
 
     // GET: api/characterprofiles
@@ -98,10 +119,10 @@ public class CharacterProfilesController : ControllerBase
             profile.Id,
             profile.Name,
             profile.Personality,
-            profile.SystemPrompt,
-            profile.ExampleDialogue,
             profile.Tone,
             profile.Backstory,
+            profile.SystemPrompt,
+            profile.ExampleDialogue,
             profile.AvatarImageUrl,
             profile.IsActive
         );
