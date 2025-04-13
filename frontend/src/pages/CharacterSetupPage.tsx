@@ -1,374 +1,228 @@
-import React, { useState, useEffect } from "react";
+// src/pages/CharacterSetupPage.tsx (抜粋)
+import React, { useEffect } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
-import { CharacterProfileResponse } from "../models/CharacterProfileResponse";
+import {
+  useForm,
+  SubmitHandler,
+  Controller,
+  useFieldArray,
+} from "react-hook-form"; // react-hook-form をインポート
 import { CreateCharacterProfileRequest } from "../models/CreateCharacterProfileRequest";
 import { UpdateCharacterProfileRequest } from "../models/UpdateCharacterProfileRequest";
+import { useCharacterProfile } from "../hooks/useCharacterProfile"; // カスタムフック
 import styles from "./CharacterSetupPage.module.css";
+// import { getGenericErrorMessage } from '../utils/errorHandler'; // 必要に応じて
 
-interface DialoguePair {
-  id: number; // リスト内で各ペアを一意に識別するための一時的なID
+interface DialoguePairForm {
   user: string;
   model: string;
 }
 
+interface CharacterFormData {
+  name: string;
+  personality: string;
+  tone: string;
+  backstory: string;
+  systemPrompt: string | null;
+  isSystemPromptCustomized: boolean;
+  // exampleDialogue: string | null; // useFieldArray 導入時に DialoguePair[] 型に変更
+  avatarImageUrl: string | null;
+  isActive: boolean;
+  dialoguePairs: DialoguePairForm[];
+}
+
 const CharacterSetupPage: React.FC = () => {
-  const apiUrl = "https://localhost:7000/api/characterprofiles";
-  // --- ルーター関連フック ---
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const isEditMode = !!id;
   const characterId = isEditMode ? parseInt(id, 10) : null;
 
-  // --- フォーム入力値の状態管理 ---
-  const [name, setName] = useState<string>("");
-  const [personality, setPersonality] = useState<string>("");
-  const [tone, setTone] = useState<string>("");
-  const [backstory, setBackstory] = useState<string>("");
-  const [systemPrompt, setSystemPrompt] = useState<string>("");
-  const [exampleDialogue, setExampleDialogue] = useState<string>("");
-  const [avatarImageUrl, setAvatarImageUrl] = useState<string>("");
-  const [isActive, setIsActive] = useState<boolean>(true);
-  const [isCustomChecked, setIsCustomChecked] = useState<boolean>(false);
-  const [dialoguePairs, setDialoguePairs] = useState<DialoguePair[]>([]);
+  // カスタムフックから API 関連の機能を取得
+  const {
+    character: initialCharacterData, // 初期データとして取得
+    isLoading: isLoadingCharacter, // ローディング状態
+    error: fetchError,
+    isSubmitting: isApiSubmitting, // API 通信中の状態
+    submitError: apiSubmitError,
+    fetchCharacter,
+    createCharacter,
+    updateCharacter,
+    deleteCharacter,
+  } = useCharacterProfile();
 
-  // --- データ読み込み用の状態管理 ---
-  const [isLoading, setIsLoading] = useState<boolean>(false); // ローディング状態
-  const [error, setError] = useState<string | null>(null); // エラーメッセージ
-  const [isSubmitting, setIsSubmitting] = useState<boolean>(false); // 送信中フラグ
-  const [submitError, setSubmitError] = useState<string | null>(null); // 送信エラーメッセージ
+  // --- react-hook-form の設定 ---
+  const {
+    register, // 入力要素を登録する関数
+    handleSubmit, // フォーム送信を処理する関数
+    control, // Controller コンポーネントで使用 (後述)
+    reset, // フォーム値をリセット/初期化する関数
+    watch, // 特定のフォーム値を監視する関数 (isSystemPromptCustomized で使用)
+    formState: { errors, isSubmitting: isFormSubmitting }, // フォームの状態 (エラー、送信中かなど)
+  } = useForm<CharacterFormData>({
+    // デフォルト値を設定
+    defaultValues: {
+      name: "",
+      personality: "",
+      tone: "",
+      backstory: "",
+      systemPrompt: null,
+      isSystemPromptCustomized: false,
+      // exampleDialogue: null, // useFieldArray で管理
+      avatarImageUrl: null,
+      isActive: true,
+      dialoguePairs: [], // useFieldArray 用
+    },
+  });
 
-  // --- 編集モード時のデータ読み込みロジック ---
+  // --- useFieldArray の設定 ---
+  const { fields, append, remove } = useFieldArray({
+    control, // useForm の control を渡す
+    name: "dialoguePairs", // 管理するフィールド配列の名前
+  });
+
+  // isSystemPromptCustomized の値を監視
+  const isCustomChecked = watch("isSystemPromptCustomized");
+
+  // --- 編集モード時のデータ読み込みとフォームへの反映 ---
   useEffect(() => {
-    // 編集モードの場合のみデータを読み込む
     if (isEditMode && characterId) {
-      setIsLoading(true); // ローディング開始
-      setError(null); // エラーをクリア
-      console.log(`編集モード: ID=${characterId} のデータを読み込みます`);
+      fetchCharacter(characterId); // カスタムフックでデータ取得
+    }
+    // 新規作成モードの場合や、依存配列の characterId が変わったときに
+    // フォームをデフォルト値でリセットする（必要に応じて）
+    else {
+      reset(); // defaultValues でリセット
+    }
+  }, [characterId, isEditMode, fetchCharacter]); // fetchCharacter も依存配列に追加
 
-      const fetchCharacterData = async () => {
+  // データ取得が完了したらフォームに値をセット
+  useEffect(() => {
+    if (initialCharacterData) {
+      // dialoguePairs の処理を追加する必要あり
+      let parsedPairs = [];
+      if (initialCharacterData.exampleDialogue) {
         try {
-          // GET /api/characterprofiles/{id} を呼び出す
-          const response = await fetch(
-            `https://localhost:7000/api/characterprofiles/${characterId}`
-          );
-
-          if (!response.ok) {
-            if (response.status === 404) {
-              throw new Error(
-                `キャラクター (ID: ${characterId}) が見つかりません。`
-              );
-            } else {
-              throw new Error(
-                `データの読み込みに失敗しました: ${response.statusText}`
-              );
-            }
-          }
-
-          const data: CharacterProfileResponse = await response.json();
-
-          // 取得したデータでフォームの状態を更新
-          setName(data.name);
-          setPersonality(data.personality ?? ""); // null の場合は空文字に
-          setTone(data.tone ?? "");
-          setBackstory(data.backstory ?? "");
-          setSystemPrompt(data.systemPrompt ?? "");
-          setExampleDialogue(data.exampleDialogue ?? "");
-          setAvatarImageUrl(data.avatarImageUrl ?? "");
-          setIsActive(data.isActive);
-          setIsCustomChecked(data.isSystemPromptCustomized);
-
-          if (
-            data.exampleDialogue &&
-            typeof data.exampleDialogue === "string"
-          ) {
-            try {
-              const parsedPairs: { user: string; model: string }[] = JSON.parse(
-                data.exampleDialogue
-              );
-
-              if (Array.isArray(parsedPairs)) {
-                setDialoguePairs(
-                  parsedPairs.map((pair, index) => ({
-                    // Date.now() を使うと毎回IDが変わる可能性があるので、簡易的なら index でも良いが、
-                    // より安定したIDが必要な場合は uuid ライブラリなどを検討
-                    id: Date.now() + index, // 簡易的なユニークID生成例
-                    user: pair.user ?? "", // null/undefined の場合は空文字に
-                    model: pair.model ?? "", // null/undefined の場合は空文字に
-                  }))
-                );
-              } else {
-                // パース結果が配列でなかった場合
-                console.warn(
-                  "Parsed exampleDialogue is not an array:",
-                  parsedPairs
-                );
-                setError("会話例データの形式が不正です (配列ではありません)。");
-                setDialoguePairs([]); // 不正な形式なので空にする
-              }
-            } catch (parseError) {
-              // JSON.parse() が失敗した場合
-              console.error(
-                "Failed to parse exampleDialogue JSON:",
-                parseError
-              );
-              setError(
-                "会話例データの読み込みに失敗しました。形式が不正な可能性があります。"
-              );
-              setDialoguePairs([]); // パース失敗時は空にする
-            }
-          } else {
-            // exampleDialogue が null, undefined, または文字列でない場合
-            setDialoguePairs([]); // データがない場合は空配列をセット
-          }
-
-          console.log("キャラクターデータの読み込み完了:", data);
-        } catch (err) {
-          setError(
-            err instanceof Error ? err.message : "不明なエラーが発生しました"
-          );
-          console.error("Error fetching character data:", err);
-          // エラー発生時はフォームを初期状態にするか、あるいはそのままにするか検討
-          // setName(''); setPersonality(''); ... etc.
-        } finally {
-          setIsLoading(false); // ローディング完了
+          parsedPairs = JSON.parse(initialCharacterData.exampleDialogue);
+          if (!Array.isArray(parsedPairs)) parsedPairs = [];
+        } catch {
+          parsedPairs = [];
         }
-      };
+      }
 
-      fetchCharacterData();
-    } else {
-      setName("");
-      setPersonality("");
-      setTone("");
-      setBackstory("");
-      setSystemPrompt("");
-      setIsActive(true);
-      setIsCustomChecked(false);
-      setDialoguePairs([]);
-      setIsCustomChecked(false);
-      setError(null);
+      reset({
+        // react-hook-form の reset 関数でフォーム値を更新
+        name: initialCharacterData.name,
+        personality: initialCharacterData.personality ?? "",
+        tone: initialCharacterData.tone ?? "",
+        backstory: initialCharacterData.backstory ?? "",
+        systemPrompt: initialCharacterData.systemPrompt ?? null,
+        isSystemPromptCustomized: initialCharacterData.isSystemPromptCustomized,
+        avatarImageUrl: initialCharacterData.avatarImageUrl ?? null,
+        isActive: initialCharacterData.isActive,
+        dialoguePairs: parsedPairs.map((p) => ({
+          user: p.user ?? "",
+          model: p.model ?? "",
+        })), // useFieldArray 用
+      });
     }
-  }, [characterId, isEditMode]);
+  }, [initialCharacterData, reset]); // reset も依存配列に追加推奨
 
-  // --- 会話例ペアの入力値を変更するハンドラ ---
-  const handlePairChange = (
-    id: number,
-    field: "user" | "model",
-    value: string
-  ) => {
-    setDialoguePairs((currentPairs) =>
-      currentPairs.map((pair) =>
-        // IDが一致するペアを見つけて、指定されたフィールド (user または model) の値を更新
-        pair.id === id ? { ...pair, [field]: value } : pair
-      )
-    );
-  };
+  // --- フォーム送信処理 ---
+  const onSubmit: SubmitHandler<CharacterFormData> = async (formData) => {
+    // formData には react-hook-form が収集したフォームデータが入る
+    console.log("Form Data:", formData); // デバッグ用
 
-  // --- 新しい会話例ペアを追加するハンドラ ---
-  const handleAddPair = () => {
-    // 件数制限 (0～10件なので、10件未満の場合のみ追加)
-    if (dialoguePairs.length >= 10) {
-      alert("会話例は 10 件まで登録できます。");
-      return; // 10件に達していたら追加しない
-    }
-    // 新しい空のペアオブジェクトを作成 (ID は簡易的に現在時刻を使用)
-    const newPair: DialoguePair = {
-      id: Date.now(), // 簡易的なユニークID
-      user: "",
-      model: "",
-    };
-    // 現在の配列の末尾に新しいペアを追加して state を更新
-    setDialoguePairs((currentPairs) => [...currentPairs, newPair]);
-  };
-
-  // --- 会話例ペアを削除するハンドラ ---
-  const handleDeletePair = (id: number) => {
-    // 指定された ID *以外* のペアだけをフィルタリングして新しい配列を作成し、state を更新
-    setDialoguePairs((currentPairs) =>
-      currentPairs.filter((pair) => pair.id !== id)
-    );
-  };
-
-  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault(); // デフォルトのフォーム送信を抑制
-    setIsSubmitting(true); // 送信開始
-    setSubmitError(null); // エラーをクリア
-
-    // --- TODO: ここでクライアントサイドバリデーションを追加する (任意) ---
-    // 例: if (name.length === 0) { setSubmitError("名前は必須です"); setIsSubmitting(false); return; }
-
-    let dialogueJsonString: string | null = null; // 結果を格納する変数
+    // exampleDialogue を JSON 文字列に変換 (useFieldArray 導入後は formData.dialoguePairs を使う)
+    let dialogueJsonString: string | null = null;
     try {
-      // dialoguePairs 配列から、API に送る形式 ({ user, model } のみ) の配列を作成
-      // 各ペアから 'id' プロパティを除外する
-      const pairsToSerialize = dialoguePairs.map(({ id, ...rest }) => rest);
-
-      // 配列が空でなければ JSON 文字列化する
-      if (pairsToSerialize.length > 0) {
-        dialogueJsonString = JSON.stringify(pairsToSerialize);
+      if (formData.dialoguePairs && formData.dialoguePairs.length > 0) {
+        // id を除外する処理は不要になる (useFieldArray が管理)
+        dialogueJsonString = JSON.stringify(formData.dialoguePairs);
       }
     } catch (stringifyError) {
       console.error("Failed to stringify dialogue pairs:", stringifyError);
-      setError("会話例データの保存形式への変換に失敗しました。");
-      setIsSubmitting(false);
+      // setError("dialoguePairs", { type: "manual", message: "会話例の保存形式への変換に失敗しました。" }); // react-hook-form のエラーセット
+      alert("会話例データの保存形式への変換に失敗しました。"); // 一時的なアラート
       return;
     }
 
-    try {
-      let response: Response;
-
-      if (isEditMode && characterId) {
-        // --- 更新 (PUT) ---
-        const requestData: UpdateCharacterProfileRequest = {
-          // UpdateCharacterProfileRequest に対応するオブジェクト
-          name,
-          personality,
-          tone,
-          backstory,
-          systemPrompt: systemPrompt || null,
-          exampleDialogue: dialogueJsonString,
-          avatarImageUrl: avatarImageUrl || null,
-          isActive,
-          isSystemPromptCustomized: isCustomChecked,
-        };
-        console.log("Updating character:", characterId, requestData);
-
-        response = await fetch(`${apiUrl}/${characterId}`, {
-          method: "PUT",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(requestData),
-        });
-
-        if (!response.ok) {
-          // 404 Not Found や 400 Bad Request など
-          const errorData = await response.json().catch(() => ({
-            message: `更新に失敗しました (${response.status})`,
-          }));
-          throw new Error(
-            errorData.message || `更新に失敗しました (${response.status})`
-          );
-        }
-
+    if (isEditMode && characterId) {
+      // --- 更新処理 ---
+      const requestData: UpdateCharacterProfileRequest = {
+        name: formData.name,
+        personality: formData.personality,
+        tone: formData.tone,
+        backstory: formData.backstory,
+        // isCustomChecked が false なら systemPrompt は送らない (バックエンドで自動生成)
+        systemPrompt: formData.isSystemPromptCustomized
+          ? formData.systemPrompt
+          : null,
+        isSystemPromptCustomized: formData.isSystemPromptCustomized,
+        exampleDialogue: dialogueJsonString,
+        avatarImageUrl: formData.avatarImageUrl,
+        isActive: formData.isActive,
+      };
+      const success = await updateCharacter(characterId, requestData); // カスタムフック呼び出し
+      if (success) {
         alert("キャラクター情報を更新しました！");
-      } else {
-        // --- 新規登録 (POST) ---
-        const requestData: CreateCharacterProfileRequest = {
-          // CreateCharacterProfileRequest に対応するオブジェクト
-          name,
-          personality,
-          tone,
-          backstory,
-          systemPrompt: isCustomChecked ? systemPrompt || null : null,
-          exampleDialogue: dialogueJsonString || null,
-          avatarImageUrl: avatarImageUrl || null,
-          isActive,
-        };
-        console.log("Creating new character:", requestData); // デバッグ用ログ
-
-        response = await fetch(apiUrl, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(requestData),
-        });
-
-        if (!response.ok) {
-          // 400 Bad Request など
-          const errorData = await response.json().catch(() => ({
-            message: `登録に失敗しました (${response.status})`,
-          }));
-          throw new Error(
-            errorData.message || `登録に失敗しました (${response.status})`
-          );
-        }
-
-        // 登録成功時の処理 (レスポンスから新しいIDを取得して編集画面へリダイレクト)
-        const createdCharacter: CharacterProfileResponse =
-          await response.json(); // サーバーが返すDTOを受け取る
+        // 必要なら一覧ページへリダイレクトなど
+        // navigate('/characters');
+      }
+    } else {
+      // --- 新規作成処理 ---
+      const requestData: CreateCharacterProfileRequest = {
+        name: formData.name,
+        personality: formData.personality,
+        tone: formData.tone,
+        backstory: formData.backstory,
+        systemPrompt: formData.isSystemPromptCustomized
+          ? formData.systemPrompt
+          : null, // カスタムする場合のみ送信
+        // isSystemPromptCustomized は Create リクエストには不要 (バックエンドで判定)
+        exampleDialogue: dialogueJsonString,
+        avatarImageUrl: formData.avatarImageUrl,
+        isActive: formData.isActive, // デフォルト true だが念のため
+      };
+      const createdCharacter = await createCharacter(requestData); // カスタムフック呼び出し
+      if (createdCharacter) {
         alert(`キャラクター「${createdCharacter.name}」を登録しました！`);
         navigate(`/characters/edit/${createdCharacter.id}`); // 作成されたキャラクターの編集画面へ
       }
-    } catch (err) {
-      // API呼び出し中のエラーや、レスポンス処理中のエラー
-      const errorMessage =
-        err instanceof Error ? err.message : "不明なエラーが発生しました。";
-      setSubmitError(`エラー: ${errorMessage}`);
-      console.error("Form submission error:", err);
-    } finally {
-      setIsSubmitting(false); // 送信完了 (成功・失敗問わず)
     }
   };
 
-  const handleDelete = async () => {
-    // 編集モードでない、または characterId が確定していない場合は何もしない
+  // --- 削除処理 ---
+  const handleDeleteClick = async () => {
     if (!isEditMode || !characterId) return;
-
-    // 削除確認ダイアログを表示
-    // ユーザーが「キャンセル」を選んだら confirm は false を返す
     if (
       window.confirm(
         `キャラクター「${
-          name || "未名のキャラクター"
-        }」(ID: ${characterId}) を本当に削除しますか？\nこの操作は元に戻せません。`
+          initialCharacterData?.name || "未名のキャラクター"
+        }」(ID: ${characterId}) を本当に削除しますか？`
       )
     ) {
-      setIsSubmitting(true); // 処理開始 (ボタンを無効化するために流用)
-      setSubmitError(null); // 既存のエラーメッセージをクリア
-
-      try {
-        console.log(`Deleting character: ID=${characterId}`); // デバッグログ
-
-        // DELETE リクエストを送信
-        const response = await fetch(`${apiUrl}/${characterId}`, {
-          method: "DELETE",
-        });
-
-        if (!response.ok) {
-          const errorData = await response.json().catch(() => ({
-            message: `削除リクエストに失敗しました (ステータス: ${response.status})`,
-          }));
-          throw new Error(
-            errorData.message ||
-              `削除リクエストに失敗しました (ステータス: ${response.status})`
-          );
-        }
-
-        // --- 削除成功時の処理 ---
+      const success = await deleteCharacter(characterId); // カスタムフック呼び出し
+      if (success) {
         alert(`キャラクター (ID: ${characterId}) を削除しました。`);
-        navigate("/characters"); // キャラクター一覧画面へ遷移
-      } catch (err) {
-        // fetch 自体のエラー、または上記 throw new Error で捕捉
-        const errorMessage =
-          err instanceof Error
-            ? err.message
-            : "不明な削除エラーが発生しました。";
-        setSubmitError(`削除エラー: ${errorMessage}`);
-        console.error("Delete character error:", err);
-        // エラーが発生した場合、ユーザーにメッセージを表示した上で現在の画面に留まる
-      } finally {
-        // 成功・失敗に関わらず、処理が終わったらボタンを有効に戻す
-        setIsSubmitting(false);
+        navigate("/characters");
       }
-    } else {
-      console.log("削除がキャンセルされました。");
     }
   };
 
   // --- レンダリング ---
-  // ローディング表示を追加
-  if (isLoading) {
+  if (isLoadingCharacter) {
     return <div>データを読み込み中...</div>;
   }
-  // エラー表示を追加 (エラーがあればフォームを表示しないなども検討可)
-  if (error) {
+  if (fetchError) {
     return (
       <div style={{ color: "red" }}>
-        エラー: {error} <Link to="/characters">一覧に戻る</Link>
+        エラー: {fetchError} <Link to="/characters">一覧に戻る</Link>
       </div>
     );
   }
+
+  // isFormSubmitting と isApiSubmitting の両方を考慮してボタンを無効化
+  const isProcessing = isFormSubmitting || isApiSubmitting;
 
   return (
     <div>
@@ -376,8 +230,9 @@ const CharacterSetupPage: React.FC = () => {
         {isEditMode ? `キャラクター編集 (ID: ${id})` : "新規キャラクター作成"}
       </h1>
 
-      <form onSubmit={handleSubmit}>
-        {/* 各フォームフィールド */}
+      {/* handleSubmit で onSubmit 関数をラップ */}
+      <form onSubmit={handleSubmit(onSubmit)}>
+        {/* 名前フィールド */}
         <div className={styles.formGroup}>
           <label htmlFor="name">
             名前 <span className={styles.required}>*</span>:
@@ -385,92 +240,125 @@ const CharacterSetupPage: React.FC = () => {
           <input
             type="text"
             id="name"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            required
-            maxLength={30} // バリデーション（サーバー側とも合わせる）
-            className={styles.input}
+            // react-hook-form の register を使用
+            {...register("name", {
+              required: "名前は必須です", // バリデーションルール
+              maxLength: {
+                value: 30,
+                message: "名前は30文字以内で入力してください",
+              },
+            })}
+            maxLength={30} // HTML の maxLength も残しておくと入力制限がかかる
+            className={`${styles.input} ${
+              errors.name ? styles.inputError : ""
+            }`} // エラー時にスタイル変更
           />
+          {/* エラーメッセージ表示 */}
+          {errors.name && (
+            <span className={styles.errorMessage}>{errors.name.message}</span>
+          )}
         </div>
 
+        {/* Personality フィールド (同様に register とエラー表示を追加) */}
         <div className={styles.formGroup}>
           <label htmlFor="personality">
             性格 <span className={styles.required}>*</span>:
           </label>
           <textarea
             id="personality"
-            value={personality}
-            onChange={(e) => setPersonality(e.target.value)}
-            required
+            {...register("personality", { required: "性格は必須です" })}
             rows={3}
-            className={styles.textarea}
+            className={`${styles.textarea} ${
+              errors.personality ? styles.inputError : ""
+            }`}
           />
+          {errors.personality && (
+            <span className={styles.errorMessage}>
+              {errors.personality.message}
+            </span>
+          )}
         </div>
 
+        {/* Tone フィールド (同様に) */}
         <div className={styles.formGroup}>
           <label htmlFor="tone">
             口調 <span className={styles.required}>*</span>:
           </label>
           <textarea
             id="tone"
-            value={tone}
-            onChange={(e) => setTone(e.target.value)}
-            required
+            {...register("tone", { required: "口調は必須です" })}
             rows={3}
-            className={styles.textarea}
+            className={`${styles.textarea} ${
+              errors.tone ? styles.inputError : ""
+            }`}
           />
+          {errors.tone && (
+            <span className={styles.errorMessage}>{errors.tone.message}</span>
+          )}
         </div>
 
+        {/* Backstory フィールド (同様に) */}
         <div className={styles.formGroup}>
           <label htmlFor="backstory">
             背景 <span className={styles.required}>*</span>:
           </label>
           <textarea
             id="backstory"
-            value={backstory}
-            onChange={(e) => setBackstory(e.target.value)}
-            required
+            {...register("backstory", { required: "背景は必須です" })}
             rows={5}
-            className={styles.textarea}
+            className={`${styles.textarea} ${
+              errors.backstory ? styles.inputError : ""
+            }`}
           />
+          {errors.backstory && (
+            <span className={styles.errorMessage}>
+              {errors.backstory.message}
+            </span>
+          )}
         </div>
 
+        {/* --- System Prompt --- */}
         <div className={styles.formGroup}>
           <label htmlFor="systemPrompt" className={styles.label}>
             システムプロンプト ({isCustomChecked ? "カスタム入力" : "自動生成"}
             ):
           </label>
-          <div
-            className={styles.formGroup}
-            style={{
-              flexDirection: "row",
-              alignItems: "center",
-              marginBottom: "0.5rem",
-            }}
-          >
-            {" "}
+          <div /* Checkbox wrapper */>
+            {/* チェックボックスも register で管理 */}
             <input
               type="checkbox"
-              id="isCustomChecked"
-              checked={isCustomChecked}
-              onChange={(e) => setIsCustomChecked(e.target.checked)}
-              style={{ marginRight: "0.5rem", cursor: "pointer" }} // クリックしやすく
+              id="isSystemPromptCustomized"
+              {...register("isSystemPromptCustomized")} // バリデーション不要ならこれだけ
+              style={{ marginRight: "0.5rem", cursor: "pointer" }}
             />
-            <label htmlFor="isCustomChecked" style={{ cursor: "pointer" }}>
+            <label
+              htmlFor="isSystemPromptCustomized"
+              style={{ cursor: "pointer" }}
+            >
               システムプロンプトをカスタムする
             </label>
           </div>
           <textarea
             id="systemPrompt"
-            value={systemPrompt}
-            onChange={(e) => setSystemPrompt(e.target.value)}
+            {...register("systemPrompt", {
+              // isCustomChecked が true の場合のみ必須にするなどの条件付きバリデーションも可能
+              required: isCustomChecked
+                ? "カスタムプロンプトは必須です"
+                : false,
+            })}
             rows={5}
             placeholder={
               isCustomChecked ? "カスタムプロンプトを入力" : "自動生成されます"
             }
             className={styles.textarea}
-            disabled={!isCustomChecked}
+            disabled={!isCustomChecked} // 監視している値で無効化
           />
+          {/* エラー表示 (必要なら) */}
+          {errors.systemPrompt && (
+            <span className={styles.errorMessage}>
+              {errors.systemPrompt.message}
+            </span>
+          )}
           {!isCustomChecked && (
             <small className={styles.hintText}>
               カスタムチェックを入れると編集できます。
@@ -478,63 +366,85 @@ const CharacterSetupPage: React.FC = () => {
           )}
         </div>
 
-        {/* TODO: ExampleDialogue の動的入力 UI をここに実装 */}
         <div className={styles.formGroup}>
           <label className={styles.label}>会話例 (任意、0～10件):</label>
-          {/* dialoguePairs 配列をループして各ペアの入力欄とボタンを表示 */}
-          {dialoguePairs.map((pair, index) => (
-            // 各ペアのコンテナ (key にはユニークな pair.id を指定)
-            <div key={pair.id} className={styles.pairContainer}>
-              {/* ユーザー発言入力 */}
+          {fields.map((field, index) => (
+            // key には field.id を使用 (react-hook-form が生成)
+            <div key={field.id} className={styles.pairContainer}>
+              {/* ユーザー発言 */}
               <div style={{ marginRight: "1rem", flexGrow: 1 }}>
-                <label htmlFor={`user-${pair.id}`} className={styles.subLabel}>
+                <label
+                  htmlFor={`dialoguePairs.${index}.user`}
+                  className={styles.subLabel}
+                >
                   ユーザー発言 {index + 1}:
                 </label>
                 <textarea
-                  id={`user-${pair.id}`}
-                  value={pair.user}
-                  // 入力値が変わったら handlePairChange を呼び出す
-                  onChange={(e) =>
-                    handlePairChange(pair.id, "user", e.target.value)
-                  }
-                  rows={2} // 適宜調整
-                  className={styles.textarea}
+                  id={`dialoguePairs.${index}.user`}
+                  // register でフィールドを登録 (名前はインデックス付き)
+                  {...register(`dialoguePairs.${index}.user`, {
+                    // 必要ならバリデーションルールを追加
+                    required: "ユーザー発言は必須です",
+                  })}
+                  rows={2}
+                  className={`${styles.textarea} ${
+                    errors.dialoguePairs?.[index]?.user ? styles.inputError : ""
+                  }`}
                 />
+                {/* エラー表示 */}
+                {errors.dialoguePairs?.[index]?.user && (
+                  <span className={styles.errorMessage}>
+                    {errors.dialoguePairs[index]?.user?.message}
+                  </span>
+                )}
               </div>
-              {/* モデル応答入力 */}
+              {/* モデル応答 */}
               <div style={{ flexGrow: 1 }}>
-                <label htmlFor={`model-${pair.id}`} className={styles.subLabel}>
+                <label
+                  htmlFor={`dialoguePairs.${index}.model`}
+                  className={styles.subLabel}
+                >
                   モデル応答 {index + 1}:
                 </label>
                 <textarea
-                  id={`model-${pair.id}`}
-                  value={pair.model}
-                  // 入力値が変わったら handlePairChange を呼び出す
-                  onChange={(e) =>
-                    handlePairChange(pair.id, "model", e.target.value)
-                  }
-                  rows={2} // 適宜調整
-                  className={styles.textarea}
+                  id={`dialoguePairs.${index}.model`}
+                  {...register(`dialoguePairs.${index}.model`, {
+                    required: "モデル応答は必須です",
+                  })}
+                  rows={2}
+                  className={`${styles.textarea} ${
+                    errors.dialoguePairs?.[index]?.model
+                      ? styles.inputError
+                      : ""
+                  }`}
                 />
+                {errors.dialoguePairs?.[index]?.model && (
+                  <span className={styles.errorMessage}>
+                    {errors.dialoguePairs[index]?.model?.message}
+                  </span>
+                )}
               </div>
-              {/* このペアを削除するボタン */}
+              {/* 削除ボタン (remove 関数を使用) */}
               <button
-                type="button" // form の submit をトリガーしないように type="button" を指定
-                onClick={() => handleDeletePair(pair.id)} // クリックで handleDeletePair を呼び出す
+                type="button"
+                onClick={() => remove(index)}
                 className={styles.deletePairButton}
-                title="この会話例を削除" // マウスオーバーで説明表示
+                title="この会話例を削除"
+                disabled={isProcessing} // 処理中は無効化
               >
-                × {/* バツ印 */}
+                ×
               </button>
             </div>
           ))}
 
-          {/* 会話例を追加するボタン (10件未満の場合のみ表示) */}
-          {dialoguePairs.length < 10 && (
+          {/* 追加ボタン (append 関数を使用) */}
+          {/* 件数制限 (fields.length で判定) */}
+          {fields.length < 10 && (
             <button
               type="button"
-              onClick={handleAddPair}
+              onClick={() => append({ user: "", model: "" })}
               className={styles.addPairButton}
+              disabled={isProcessing} // 処理中は無効化
             >
               会話例を追加
             </button>
@@ -547,61 +457,68 @@ const CharacterSetupPage: React.FC = () => {
         <div className={styles.formGroup}>
           <label htmlFor="avatarImageUrl">アバター画像URL (任意):</label>
           <input
-            type="url"
+            type="url" // type="url" は簡易的なURL形式チェックを行う
             id="avatarImageUrl"
-            value={avatarImageUrl}
-            onChange={(e) => setAvatarImageUrl(e.target.value)}
-            className={styles.input}
+            {...register("avatarImageUrl", {
+              pattern: {
+                value: /^(https?:\/\/).*/,
+                message: "有効なURLを入力してください",
+              },
+            })}
+            className={`${styles.input} ${
+              errors.avatarImageUrl ? styles.inputError : ""
+            }`}
           />
+          {errors.avatarImageUrl && (
+            <span className={styles.errorMessage}>
+              {errors.avatarImageUrl.message}
+            </span>
+          )}
         </div>
 
+        {/* --- Is Active --- */}
         <div className={styles.formGroup}>
           <label htmlFor="isActive">
             <input
               type="checkbox"
               id="isActive"
-              checked={isActive}
-              onChange={(e) => setIsActive(e.target.checked)}
+              {...register("isActive")}
               style={{ marginRight: "0.5rem" }}
             />
             有効なキャラクター
           </label>
         </div>
 
-        {/* 送信ボタンなど */}
+        {/* --- 送信ボタン・エラー表示 --- */}
         <div className={styles.buttonGroup}>
+          {/* API 送信時のエラー表示 */}
+          {apiSubmitError && (
+            <div
+              className={styles.errorMessage}
+              style={{ marginBottom: "1rem" }}
+            >
+              {apiSubmitError}
+            </div>
+          )}
+
           <button
             type="submit"
             className={styles.button}
-            disabled={isSubmitting}
+            disabled={isProcessing} // フォーム送信中 or API通信中は無効化
           >
-            {isEditMode ? "更新" : "登録"}
+            {isProcessing ? "処理中..." : isEditMode ? "更新" : "登録"}
           </button>
-          {/* 編集モードの場合のみ削除ボタンを表示 */}
           {isEditMode && (
             <button
               type="button"
-              onClick={handleDelete}
+              onClick={handleDeleteClick} // 削除処理を実行
               className={`${styles.button} ${styles.deleteButton}`}
-              disabled={isSubmitting}
+              disabled={isProcessing} // 処理中は無効化
             >
               削除
             </button>
           )}
-          {/* TODO: 保存後に有効化する「会話する」ボタン */}
-          {isEditMode && (
-            <button
-              type="button"
-              disabled
-              /* onClick={handleStartChat} */
-              className={styles.button}
-              style={{
-                marginLeft: "1rem",
-              }}
-            >
-              会話する (未実装)
-            </button>
-          )}
+          {/* ... 他のボタン ... */}
           <Link to="/characters" style={{ marginLeft: "1rem" }}>
             キャンセル
           </Link>
