@@ -1,0 +1,58 @@
+.formGroup {
+    margin-bottom: 1rem; /* フォームグループ間の余白 */
+  }
+  
+  .label {
+    display: block;
+    margin-bottom: 0.3rem;
+    font-weight: bold;
+    color: #333;
+  }
+  
+  .required {
+    color: #dc3545; /* 赤色など */
+    margin-left: 0.2rem;
+  }
+  
+  .input,
+  .textarea {
+    width: 100%;
+    padding: 0.6rem 0.8rem;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    font-size: 1rem;
+    box-sizing: border-box; /* paddingを含めてwidth 100% にする */
+    transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
+  }
+  
+  .textarea {
+    min-height: 60px; /* テキストエリアの最小高さ */
+    resize: vertical; /* 縦方向のリサイズのみ許可 */
+  }
+  
+  
+  .input:focus,
+  .textarea:focus {
+    border-color: #80bdff;
+    outline: 0;
+    box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+  }
+  
+  .inputError,
+  .textarea.inputError { /* エラー時のスタイル */
+    border-color: #dc3545;
+  }
+  
+  .inputError:focus,
+  .textarea.inputError:focus {
+     border-color: #dc3545;
+     box-shadow: 0 0 0 0.2rem rgba(220, 53, 69, 0.25);
+  }
+  
+  
+  .errorMessage {
+    color: #dc3545;
+    font-size: 0.875rem;
+    margin-top: 0.25rem;
+    display: block; /* エラーメッセージが改行されるように */
+  }

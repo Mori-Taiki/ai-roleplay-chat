@@ -1,0 +1,95 @@
+.button {
+    display: inline-flex; /* ローディング表示とテキストを横並びにするため */
+    align-items: center;
+    justify-content: center;
+    padding: 0.6rem 1.2rem;
+    border: 1px solid transparent;
+    border-radius: 4px;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background-color 0.15s ease-in-out, border-color 0.15s ease-in-out, color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
+    text-decoration: none; /* Link 用 */
+    white-space: nowrap; /* ボタン内テキストの改行を防ぐ */
+  }
+  
+  .button:disabled {
+    opacity: 0.65;
+    cursor: not-allowed;
+  }
+  
+  /* Variants */
+  .primary {
+    color: #fff;
+    background-color: #007bff;
+    border-color: #007bff;
+  }
+  .primary:hover:not(:disabled) {
+    background-color: #0056b3;
+    border-color: #0056b3;
+  }
+  .primary:focus {
+     box-shadow: 0 0 0 0.2rem rgba(38, 143, 255, 0.5);
+  }
+  
+  
+  .secondary {
+    color: #333;
+    background-color: #f8f9fa;
+    border-color: #ccc;
+  }
+  .secondary:hover:not(:disabled) {
+    background-color: #e2e6ea;
+    border-color: #adb5bd;
+  }
+  .secondary:focus {
+     box-shadow: 0 0 0 0.2rem rgba(204, 204, 204, 0.5);
+  }
+  
+  .danger {
+    color: #fff;
+    background-color: #dc3545;
+    border-color: #dc3545;
+  }
+  .danger:hover:not(:disabled) {
+    background-color: #c82333;
+    border-color: #bd2130;
+  }
+  .danger:focus {
+     box-shadow: 0 0 0 0.2rem rgba(225, 83, 97, 0.5);
+  }
+  
+  
+  .link {
+    color: #007bff;
+    background-color: transparent;
+    border-color: transparent;
+    padding: 0; /* リンク風にするためパディングを調整 */
+    text-decoration: underline;
+  }
+  .link:hover:not(:disabled) {
+    color: #0056b3;
+  }
+  
+  
+  /* Loading state */
+  .loading {
+    position: relative; /* スピナーの位置基準 */
+  }
+  
+  .spinner {
+    display: inline-block;
+    width: 1em; /* font-size に合わせる */
+    height: 1em;
+    border: 2px solid currentColor;
+    border-right-color: transparent;
+    border-radius: 50%;
+    animation: button-spinner 0.75s linear infinite;
+    margin-right: 0.5em; /* テキストとの間隔 */
+  }
+  
+  @keyframes button-spinner {
+    to {
+      transform: rotate(360deg);
+    }
+  }

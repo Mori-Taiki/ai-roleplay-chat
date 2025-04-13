@@ -1,17 +1,17 @@
-// src/pages/CharacterSetupPage.tsx (抜粋)
 import React, { useEffect } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import {
   useForm,
   SubmitHandler,
-  Controller,
+  // Controller,
   useFieldArray,
 } from "react-hook-form"; // react-hook-form をインポート
 import { CreateCharacterProfileRequest } from "../models/CreateCharacterProfileRequest";
 import { UpdateCharacterProfileRequest } from "../models/UpdateCharacterProfileRequest";
 import { useCharacterProfile } from "../hooks/useCharacterProfile"; // カスタムフック
 import styles from "./CharacterSetupPage.module.css";
-// import { getGenericErrorMessage } from '../utils/errorHandler'; // 必要に応じて
+import FormField from "../components/FormField";
+import Button from "../components/Button";
 
 interface DialoguePairForm {
   user: string;
@@ -232,90 +232,42 @@ const CharacterSetupPage: React.FC = () => {
 
       {/* handleSubmit で onSubmit 関数をラップ */}
       <form onSubmit={handleSubmit(onSubmit)}>
-        {/* 名前フィールド */}
-        <div className={styles.formGroup}>
-          <label htmlFor="name">
-            名前 <span className={styles.required}>*</span>:
-          </label>
-          <input
-            type="text"
-            id="name"
-            // react-hook-form の register を使用
-            {...register("name", {
-              required: "名前は必須です", // バリデーションルール
-              maxLength: {
-                value: 30,
-                message: "名前は30文字以内で入力してください",
-              },
-            })}
-            maxLength={30} // HTML の maxLength も残しておくと入力制限がかかる
-            className={`${styles.input} ${
-              errors.name ? styles.inputError : ""
-            }`} // エラー時にスタイル変更
-          />
-          {/* エラーメッセージ表示 */}
-          {errors.name && (
-            <span className={styles.errorMessage}>{errors.name.message}</span>
-          )}
-        </div>
-
-        {/* Personality フィールド (同様に register とエラー表示を追加) */}
-        <div className={styles.formGroup}>
-          <label htmlFor="personality">
-            性格 <span className={styles.required}>*</span>:
-          </label>
-          <textarea
-            id="personality"
-            {...register("personality", { required: "性格は必須です" })}
-            rows={3}
-            className={`${styles.textarea} ${
-              errors.personality ? styles.inputError : ""
-            }`}
-          />
-          {errors.personality && (
-            <span className={styles.errorMessage}>
-              {errors.personality.message}
-            </span>
-          )}
-        </div>
-
-        {/* Tone フィールド (同様に) */}
-        <div className={styles.formGroup}>
-          <label htmlFor="tone">
-            口調 <span className={styles.required}>*</span>:
-          </label>
-          <textarea
-            id="tone"
-            {...register("tone", { required: "口調は必須です" })}
-            rows={3}
-            className={`${styles.textarea} ${
-              errors.tone ? styles.inputError : ""
-            }`}
-          />
-          {errors.tone && (
-            <span className={styles.errorMessage}>{errors.tone.message}</span>
-          )}
-        </div>
-
-        {/* Backstory フィールド (同様に) */}
-        <div className={styles.formGroup}>
-          <label htmlFor="backstory">
-            背景 <span className={styles.required}>*</span>:
-          </label>
-          <textarea
-            id="backstory"
-            {...register("backstory", { required: "背景は必須です" })}
-            rows={5}
-            className={`${styles.textarea} ${
-              errors.backstory ? styles.inputError : ""
-            }`}
-          />
-          {errors.backstory && (
-            <span className={styles.errorMessage}>
-              {errors.backstory.message}
-            </span>
-          )}
-        </div>
+        <FormField
+          type="text"
+          name="name"
+          label="名前"
+          register={register}
+          errors={errors}
+          required
+          maxLength={30}
+        />
+        <FormField
+          type="textarea"
+          name="personality"
+          label="性格"
+          register={register}
+          errors={errors}
+          required
+          rows={3}
+        />
+        <FormField
+          type="textarea"
+          name="tone"
+          label="口調"
+          register={register}
+          errors={errors}
+          required
+          rows={3}
+        />
+        <FormField
+          type="textarea"
+          name="backstory"
+          label="背景"
+          register={register}
+          errors={errors}
+          required
+          rows={5}
+        />
 
         {/* --- System Prompt --- */}
         <div className={styles.formGroup}>
@@ -324,11 +276,10 @@ const CharacterSetupPage: React.FC = () => {
             ):
           </label>
           <div /* Checkbox wrapper */>
-            {/* チェックボックスも register で管理 */}
             <input
               type="checkbox"
               id="isSystemPromptCustomized"
-              {...register("isSystemPromptCustomized")} // バリデーション不要ならこれだけ
+              {...register("isSystemPromptCustomized")}
               style={{ marginRight: "0.5rem", cursor: "pointer" }}
             />
             <label
@@ -341,7 +292,6 @@ const CharacterSetupPage: React.FC = () => {
           <textarea
             id="systemPrompt"
             {...register("systemPrompt", {
-              // isCustomChecked が true の場合のみ必須にするなどの条件付きバリデーションも可能
               required: isCustomChecked
                 ? "カスタムプロンプトは必須です"
                 : false,
@@ -351,7 +301,7 @@ const CharacterSetupPage: React.FC = () => {
               isCustomChecked ? "カスタムプロンプトを入力" : "自動生成されます"
             }
             className={styles.textarea}
-            disabled={!isCustomChecked} // 監視している値で無効化
+            disabled={!isCustomChecked}
           />
           {/* エラー表示 (必要なら) */}
           {errors.systemPrompt && (
@@ -454,29 +404,15 @@ const CharacterSetupPage: React.FC = () => {
           </small>
         </div>
 
-        <div className={styles.formGroup}>
-          <label htmlFor="avatarImageUrl">アバター画像URL (任意):</label>
-          <input
-            type="url" // type="url" は簡易的なURL形式チェックを行う
-            id="avatarImageUrl"
-            {...register("avatarImageUrl", {
-              pattern: {
-                value: /^(https?:\/\/).*/,
-                message: "有効なURLを入力してください",
-              },
-            })}
-            className={`${styles.input} ${
-              errors.avatarImageUrl ? styles.inputError : ""
-            }`}
-          />
-          {errors.avatarImageUrl && (
-            <span className={styles.errorMessage}>
-              {errors.avatarImageUrl.message}
-            </span>
-          )}
-        </div>
+        <FormField
+          type="url"
+          name="avatarImageUrl"
+          label="アバター画像URL (任意)"
+          register={register}
+          errors={errors}
+          placeholder="https://..."
+        />
 
-        {/* --- Is Active --- */}
         <div className={styles.formGroup}>
           <label htmlFor="isActive">
             <input
@@ -501,22 +437,28 @@ const CharacterSetupPage: React.FC = () => {
             </div>
           )}
 
-          <button
+          <Button
             type="submit"
-            className={styles.button}
-            disabled={isProcessing} // フォーム送信中 or API通信中は無効化
+            isLoading={isProcessing}
+            disabled={isProcessing}
+            loadingText="処理中..."
           >
-            {isProcessing ? "処理中..." : isEditMode ? "更新" : "登録"}
-          </button>
+            {isEditMode ? "更新" : "登録"}
+          </Button>
           {isEditMode && (
-            <button
+            <Button
               type="button"
-              onClick={handleDeleteClick} // 削除処理を実行
-              className={`${styles.button} ${styles.deleteButton}`}
-              disabled={isProcessing} // 処理中は無効化
+              variant="danger" // Danger バリアントを使用
+              onClick={handleDeleteClick}
+              isLoading={
+                isProcessing &&
+                false /* 削除専用のローディング状態管理が必要かも */
+              }
+              disabled={isProcessing}
+              style={{ marginLeft: "0.5rem" }}
             >
               削除
-            </button>
+            </Button>
           )}
           {/* ... 他のボタン ... */}
           <Link to="/characters" style={{ marginLeft: "1rem" }}>
