@@ -1,9 +1,15 @@
-// src/pages/CharacterSetupPage.tsx (雛形)
 import React, { useState, useEffect } from "react";
-import { useParams, useNavigate, Link } from "react-router-dom"; // React Router のフックをインポート
-import { CharacterProfileResponse } from "../models/CharacterProfileResponse"; // データ取得時に使う
-import { CreateCharacterProfileRequest } from "../models/CreateCharacterProfileRequest"; // データ送信時に使う
-import { UpdateCharacterProfileRequest } from "../models/UpdateCharacterProfileRequest"; // データ送信時に使う
+import { useParams, useNavigate, Link } from "react-router-dom";
+import { CharacterProfileResponse } from "../models/CharacterProfileResponse";
+import { CreateCharacterProfileRequest } from "../models/CreateCharacterProfileRequest";
+import { UpdateCharacterProfileRequest } from "../models/UpdateCharacterProfileRequest";
+import styles from "./CharacterSetupPage.module.css";
+
+interface DialoguePair {
+  id: number; // リスト内で各ペアを一意に識別するための一時的なID
+  user: string;
+  model: string;
+}
 
 const CharacterSetupPage: React.FC = () => {
   const apiUrl = "https://localhost:7000/api/characterprofiles";
@@ -23,6 +29,7 @@ const CharacterSetupPage: React.FC = () => {
   const [avatarImageUrl, setAvatarImageUrl] = useState<string>("");
   const [isActive, setIsActive] = useState<boolean>(true);
   const [isCustomChecked, setIsCustomChecked] = useState<boolean>(false);
+  const [dialoguePairs, setDialoguePairs] = useState<DialoguePair[]>([]);
 
   // --- データ読み込み用の状態管理 ---
   const [isLoading, setIsLoading] = useState<boolean>(false); // ローディング状態
@@ -70,6 +77,50 @@ const CharacterSetupPage: React.FC = () => {
           setIsActive(data.isActive);
           setIsCustomChecked(data.isSystemPromptCustomized);
 
+          if (
+            data.exampleDialogue &&
+            typeof data.exampleDialogue === "string"
+          ) {
+            try {
+              const parsedPairs: { user: string; model: string }[] = JSON.parse(
+                data.exampleDialogue
+              );
+
+              if (Array.isArray(parsedPairs)) {
+                setDialoguePairs(
+                  parsedPairs.map((pair, index) => ({
+                    // Date.now() を使うと毎回IDが変わる可能性があるので、簡易的なら index でも良いが、
+                    // より安定したIDが必要な場合は uuid ライブラリなどを検討
+                    id: Date.now() + index, // 簡易的なユニークID生成例
+                    user: pair.user ?? "", // null/undefined の場合は空文字に
+                    model: pair.model ?? "", // null/undefined の場合は空文字に
+                  }))
+                );
+              } else {
+                // パース結果が配列でなかった場合
+                console.warn(
+                  "Parsed exampleDialogue is not an array:",
+                  parsedPairs
+                );
+                setError("会話例データの形式が不正です (配列ではありません)。");
+                setDialoguePairs([]); // 不正な形式なので空にする
+              }
+            } catch (parseError) {
+              // JSON.parse() が失敗した場合
+              console.error(
+                "Failed to parse exampleDialogue JSON:",
+                parseError
+              );
+              setError(
+                "会話例データの読み込みに失敗しました。形式が不正な可能性があります。"
+              );
+              setDialoguePairs([]); // パース失敗時は空にする
+            }
+          } else {
+            // exampleDialogue が null, undefined, または文字列でない場合
+            setDialoguePairs([]); // データがない場合は空配列をセット
+          }
+
           console.log("キャラクターデータの読み込み完了:", data);
         } catch (err) {
           setError(
@@ -84,12 +135,58 @@ const CharacterSetupPage: React.FC = () => {
       };
 
       fetchCharacterData();
+    } else {
+      setName("");
+      setPersonality("");
+      setTone("");
+      setBackstory("");
+      setSystemPrompt("");
+      setIsActive(true);
+      setIsCustomChecked(false);
+      setDialoguePairs([]);
+      setIsCustomChecked(false);
+      setError(null);
     }
-    // 新規作成モードの場合は何もしない (または初期値をリセットする)
-    // else {
-    //   setName(''); // ... 他の state もリセット
-    // }
   }, [characterId, isEditMode]);
+
+  // --- 会話例ペアの入力値を変更するハンドラ ---
+  const handlePairChange = (
+    id: number,
+    field: "user" | "model",
+    value: string
+  ) => {
+    setDialoguePairs((currentPairs) =>
+      currentPairs.map((pair) =>
+        // IDが一致するペアを見つけて、指定されたフィールド (user または model) の値を更新
+        pair.id === id ? { ...pair, [field]: value } : pair
+      )
+    );
+  };
+
+  // --- 新しい会話例ペアを追加するハンドラ ---
+  const handleAddPair = () => {
+    // 件数制限 (0～10件なので、10件未満の場合のみ追加)
+    if (dialoguePairs.length >= 10) {
+      alert("会話例は 10 件まで登録できます。");
+      return; // 10件に達していたら追加しない
+    }
+    // 新しい空のペアオブジェクトを作成 (ID は簡易的に現在時刻を使用)
+    const newPair: DialoguePair = {
+      id: Date.now(), // 簡易的なユニークID
+      user: "",
+      model: "",
+    };
+    // 現在の配列の末尾に新しいペアを追加して state を更新
+    setDialoguePairs((currentPairs) => [...currentPairs, newPair]);
+  };
+
+  // --- 会話例ペアを削除するハンドラ ---
+  const handleDeletePair = (id: number) => {
+    // 指定された ID *以外* のペアだけをフィルタリングして新しい配列を作成し、state を更新
+    setDialoguePairs((currentPairs) =>
+      currentPairs.filter((pair) => pair.id !== id)
+    );
+  };
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault(); // デフォルトのフォーム送信を抑制
@@ -99,10 +196,22 @@ const CharacterSetupPage: React.FC = () => {
     // --- TODO: ここでクライアントサイドバリデーションを追加する (任意) ---
     // 例: if (name.length === 0) { setSubmitError("名前は必須です"); setIsSubmitting(false); return; }
 
-    // --- TODO: ExampleDialogue の state を JSON 文字列に変換する ---
-    // もし exampleDialogue state がオブジェクトの配列なら、ここで JSON.stringify() する
-    // 現在は string state なので、そのまま使う想定
-    const dialogueJsonString = exampleDialogue; // 仮
+    let dialogueJsonString: string | null = null; // 結果を格納する変数
+    try {
+      // dialoguePairs 配列から、API に送る形式 ({ user, model } のみ) の配列を作成
+      // 各ペアから 'id' プロパティを除外する
+      const pairsToSerialize = dialoguePairs.map(({ id, ...rest }) => rest);
+
+      // 配列が空でなければ JSON 文字列化する
+      if (pairsToSerialize.length > 0) {
+        dialogueJsonString = JSON.stringify(pairsToSerialize);
+      }
+    } catch (stringifyError) {
+      console.error("Failed to stringify dialogue pairs:", stringifyError);
+      setError("会話例データの保存形式への変換に失敗しました。");
+      setIsSubmitting(false);
+      return;
+    }
 
     try {
       let response: Response;
@@ -116,7 +225,7 @@ const CharacterSetupPage: React.FC = () => {
           tone,
           backstory,
           systemPrompt: systemPrompt || null,
-          exampleDialogue: dialogueJsonString || null,
+          exampleDialogue: dialogueJsonString,
           avatarImageUrl: avatarImageUrl || null,
           isActive,
           isSystemPromptCustomized: isCustomChecked,
@@ -269,9 +378,9 @@ const CharacterSetupPage: React.FC = () => {
 
       <form onSubmit={handleSubmit}>
         {/* 各フォームフィールド */}
-        <div style={styles.formGroup}>
+        <div className={styles.formGroup}>
           <label htmlFor="name">
-            名前 <span style={styles.required}>*</span>:
+            名前 <span className={styles.required}>*</span>:
           </label>
           <input
             type="text"
@@ -280,13 +389,13 @@ const CharacterSetupPage: React.FC = () => {
             onChange={(e) => setName(e.target.value)}
             required
             maxLength={30} // バリデーション（サーバー側とも合わせる）
-            style={styles.input}
+            className={styles.input}
           />
         </div>
 
-        <div style={styles.formGroup}>
+        <div className={styles.formGroup}>
           <label htmlFor="personality">
-            性格 <span style={styles.required}>*</span>:
+            性格 <span className={styles.required}>*</span>:
           </label>
           <textarea
             id="personality"
@@ -294,13 +403,13 @@ const CharacterSetupPage: React.FC = () => {
             onChange={(e) => setPersonality(e.target.value)}
             required
             rows={3}
-            style={styles.textarea}
+            className={styles.textarea}
           />
         </div>
 
-        <div style={styles.formGroup}>
+        <div className={styles.formGroup}>
           <label htmlFor="tone">
-            口調 <span style={styles.required}>*</span>:
+            口調 <span className={styles.required}>*</span>:
           </label>
           <textarea
             id="tone"
@@ -308,13 +417,13 @@ const CharacterSetupPage: React.FC = () => {
             onChange={(e) => setTone(e.target.value)}
             required
             rows={3}
-            style={styles.textarea}
+            className={styles.textarea}
           />
         </div>
 
-        <div style={styles.formGroup}>
+        <div className={styles.formGroup}>
           <label htmlFor="backstory">
-            背景 <span style={styles.required}>*</span>:
+            背景 <span className={styles.required}>*</span>:
           </label>
           <textarea
             id="backstory"
@@ -322,15 +431,18 @@ const CharacterSetupPage: React.FC = () => {
             onChange={(e) => setBackstory(e.target.value)}
             required
             rows={5}
-            style={styles.textarea}
+            className={styles.textarea}
           />
         </div>
 
-        <div style={styles.formGroup}>
-          <label htmlFor="systemPrompt">システムプロンプト (任意):</label>
+        <div className={styles.formGroup}>
+          <label htmlFor="systemPrompt" className={styles.label}>
+            システムプロンプト ({isCustomChecked ? "カスタム入力" : "自動生成"}
+            ):
+          </label>
           <div
+            className={styles.formGroup}
             style={{
-              ...styles.formGroup,
               flexDirection: "row",
               alignItems: "center",
               marginBottom: "0.5rem",
@@ -344,7 +456,6 @@ const CharacterSetupPage: React.FC = () => {
               onChange={(e) => setIsCustomChecked(e.target.checked)}
               style={{ marginRight: "0.5rem", cursor: "pointer" }} // クリックしやすく
             />
-            {/* ラベルもクリック可能にするため htmlFor を使用 */}
             <label htmlFor="isCustomChecked" style={{ cursor: "pointer" }}>
               システムプロンプトをカスタムする
             </label>
@@ -354,38 +465,97 @@ const CharacterSetupPage: React.FC = () => {
             value={systemPrompt}
             onChange={(e) => setSystemPrompt(e.target.value)}
             rows={5}
-            placeholder="入力しない場合は性格などから自動生成されます"
-            style={styles.textarea}
+            placeholder={
+              isCustomChecked ? "カスタムプロンプトを入力" : "自動生成されます"
+            }
+            className={styles.textarea}
             disabled={!isCustomChecked}
           />
+          {!isCustomChecked && (
+            <small className={styles.hintText}>
+              カスタムチェックを入れると編集できます。
+            </small>
+          )}
         </div>
 
         {/* TODO: ExampleDialogue の動的入力 UI をここに実装 */}
-        <div style={styles.formGroup}>
-          <label htmlFor="exampleDialogue">会話例 (任意, JSON形式):</label>
-          <textarea
-            id="exampleDialogue"
-            value={exampleDialogue}
-            onChange={(e) => setExampleDialogue(e.target.value)}
-            rows={5}
-            placeholder='例: [{"user":"入力例","model":"応答例"}]'
-            style={styles.textarea}
-          />
-          <small>将来的には専用UIにします。</small>
+        <div className={styles.formGroup}>
+          <label className={styles.label}>会話例 (任意、0～10件):</label>
+          {/* dialoguePairs 配列をループして各ペアの入力欄とボタンを表示 */}
+          {dialoguePairs.map((pair, index) => (
+            // 各ペアのコンテナ (key にはユニークな pair.id を指定)
+            <div key={pair.id} className={styles.pairContainer}>
+              {/* ユーザー発言入力 */}
+              <div style={{ marginRight: "1rem", flexGrow: 1 }}>
+                <label htmlFor={`user-${pair.id}`} className={styles.subLabel}>
+                  ユーザー発言 {index + 1}:
+                </label>
+                <textarea
+                  id={`user-${pair.id}`}
+                  value={pair.user}
+                  // 入力値が変わったら handlePairChange を呼び出す
+                  onChange={(e) =>
+                    handlePairChange(pair.id, "user", e.target.value)
+                  }
+                  rows={2} // 適宜調整
+                  className={styles.textarea}
+                />
+              </div>
+              {/* モデル応答入力 */}
+              <div style={{ flexGrow: 1 }}>
+                <label htmlFor={`model-${pair.id}`} className={styles.subLabel}>
+                  モデル応答 {index + 1}:
+                </label>
+                <textarea
+                  id={`model-${pair.id}`}
+                  value={pair.model}
+                  // 入力値が変わったら handlePairChange を呼び出す
+                  onChange={(e) =>
+                    handlePairChange(pair.id, "model", e.target.value)
+                  }
+                  rows={2} // 適宜調整
+                  className={styles.textarea}
+                />
+              </div>
+              {/* このペアを削除するボタン */}
+              <button
+                type="button" // form の submit をトリガーしないように type="button" を指定
+                onClick={() => handleDeletePair(pair.id)} // クリックで handleDeletePair を呼び出す
+                className={styles.deletePairButton}
+                title="この会話例を削除" // マウスオーバーで説明表示
+              >
+                × {/* バツ印 */}
+              </button>
+            </div>
+          ))}
+
+          {/* 会話例を追加するボタン (10件未満の場合のみ表示) */}
+          {dialoguePairs.length < 10 && (
+            <button
+              type="button"
+              onClick={handleAddPair}
+              className={styles.addPairButton}
+            >
+              会話例を追加
+            </button>
+          )}
+          <small style={{ display: "block", marginTop: "0.5rem" }}>
+            AIの応答スタイルを具体的に示す会話例を入力します。
+          </small>
         </div>
 
-        <div style={styles.formGroup}>
+        <div className={styles.formGroup}>
           <label htmlFor="avatarImageUrl">アバター画像URL (任意):</label>
           <input
             type="url"
             id="avatarImageUrl"
             value={avatarImageUrl}
             onChange={(e) => setAvatarImageUrl(e.target.value)}
-            style={styles.input}
+            className={styles.input}
           />
         </div>
 
-        <div style={styles.formGroup}>
+        <div className={styles.formGroup}>
           <label htmlFor="isActive">
             <input
               type="checkbox"
@@ -399,8 +569,12 @@ const CharacterSetupPage: React.FC = () => {
         </div>
 
         {/* 送信ボタンなど */}
-        <div style={styles.buttonGroup}>
-          <button type="submit" style={styles.button} disabled={isSubmitting}>
+        <div className={styles.buttonGroup}>
+          <button
+            type="submit"
+            className={styles.button}
+            disabled={isSubmitting}
+          >
             {isEditMode ? "更新" : "登録"}
           </button>
           {/* 編集モードの場合のみ削除ボタンを表示 */}
@@ -408,7 +582,7 @@ const CharacterSetupPage: React.FC = () => {
             <button
               type="button"
               onClick={handleDelete}
-              style={{ ...styles.button, ...styles.deleteButton }}
+              className={`${styles.button} ${styles.deleteButton}`}
               disabled={isSubmitting}
             >
               削除
@@ -419,8 +593,9 @@ const CharacterSetupPage: React.FC = () => {
             <button
               type="button"
               disabled
-              /* onClick={handleStartChat} */ style={{
-                ...styles.button,
+              /* onClick={handleStartChat} */
+              className={styles.button}
+              style={{
                 marginLeft: "1rem",
               }}
             >
@@ -437,47 +612,3 @@ const CharacterSetupPage: React.FC = () => {
 };
 
 export default CharacterSetupPage;
-
-// 簡単なインラインスタイル (実際は CSS ファイルや UI ライブラリを使うことを推奨)
-const styles = {
-  formGroup: {
-    marginBottom: "1rem",
-    display: "flex",
-    flexDirection: "column",
-  } as React.CSSProperties,
-  label: {
-    marginBottom: "0.5rem",
-    fontWeight: "bold",
-  } as React.CSSProperties,
-  input: {
-    padding: "0.5rem",
-    border: "1px solid #ccc",
-    borderRadius: "4px",
-  } as React.CSSProperties,
-  textarea: {
-    padding: "0.5rem",
-    border: "1px solid #ccc",
-    borderRadius: "4px",
-    minHeight: "60px",
-    fontFamily: "inherit", // フォントを他の入力と合わせる
-  } as React.CSSProperties,
-  required: {
-    color: "red",
-    marginLeft: "0.25rem",
-  } as React.CSSProperties,
-  buttonGroup: {
-    marginTop: "1.5rem",
-  } as React.CSSProperties,
-  button: {
-    padding: "0.75rem 1.5rem",
-    border: "none",
-    borderRadius: "4px",
-    cursor: "pointer",
-    backgroundColor: "#007bff",
-    color: "white",
-    marginRight: "0.5rem",
-  } as React.CSSProperties,
-  deleteButton: {
-    backgroundColor: "#dc3545",
-  } as React.CSSProperties,
-};

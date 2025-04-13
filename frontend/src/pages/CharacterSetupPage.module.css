@@ -1,0 +1,160 @@
+/* src/pages/CharacterSetupPage.module.css */
+
+.formGroup {
+    margin-bottom: 1rem;
+    display: flex;
+    flex-direction: column;
+  }
+  
+  .label {
+    margin-bottom: 0.5rem;
+    font-weight: bold;
+  }
+  
+  /* チェックボックス付きラベルのスタイル調整 (任意) */
+  .checkboxLabel {
+     display: flex;
+     align-items: center; /* チェックボックスとテキストを垂直中央揃え */
+     cursor: pointer;
+     font-weight: normal; /* 太字解除 */
+     margin-bottom: 0; /* formGroup の margin で調整 */
+  }
+  .checkboxInput {
+      margin-right: 0.5rem;
+      cursor: pointer;
+  }
+  
+  
+  .input,
+  .textarea {
+    padding: 0.5rem;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    font-family: inherit; /* 親要素のフォントを継承 */
+  }
+  
+  .textarea {
+    min-height: 60px; /* textarea の最小高さ */
+    resize: vertical; /* 垂直方向のリサイズのみ許可 (任意) */
+  }
+  
+  .required {
+    color: red;
+    margin-left: 0.25rem;
+  }
+  
+  .buttonGroup {
+    margin-top: 1.5rem;
+    display: flex; /* ボタンを横並びにする場合 */
+    align-items: center; /* 垂直中央揃え */
+    flex-wrap: wrap; /* 折り返し */
+    gap: 0.5rem; /* ボタン間の隙間 */
+  }
+  
+  .button {
+    padding: 0.75rem 1.5rem;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    background-color: #007bff;
+    color: white;
+    /* marginRight は gap で代替 */
+    text-decoration: none; /* Link コンポーネントで使う場合 */
+    display: inline-block; /* Link コンポーネントで使う場合 */
+    text-align: center;
+  }
+  .button:disabled {
+      background-color: #cccccc;
+      cursor: not-allowed;
+  }
+  
+  
+  .deleteButton {
+    background-color: #dc3545;
+  }
+  .deleteButton:disabled {
+      background-color: #f5c6cb;
+  }
+  
+  /* --- 会話例 UI 用スタイル --- */
+  .pairContainer {
+    display: flex;
+    align-items: flex-start; /* テキストエリアの上端で揃える */
+    margin-bottom: 1rem;
+    padding: 1rem;
+    border: 1px solid #eee;
+    border-radius: 4px;
+    position: relative; /* 削除ボタンの位置基準 */
+    gap: 1rem; /* 入力欄間の隙間 */
+  }
+  
+  .pairInputGroup {
+      flex-grow: 1; /* 利用可能なスペースを分け合う */
+  }
+  
+  
+  .subLabel {
+    display: block;
+    margin-bottom: 0.25rem;
+    font-size: 0.9em;
+    font-weight: normal;
+  }
+  
+  .deletePairButton {
+    /* marginLeft: '1rem', */ /* gap で代替 */
+    padding: 0.25rem 0.5rem;
+    background-color: #ff4d4f;
+    color: white;
+    border: none;
+    border-radius: 50%; /* 丸く */
+    cursor: pointer;
+    line-height: 1;
+    font-weight: bold;
+    /* position: absolute; */ /* absolute より flex レイアウトの一部にする方が安定する場合も */
+    /* top: 0.5rem; */
+    /* right: 0.5rem; */
+    align-self: center; /* flex アイテムとして中央揃え */
+    flex-shrink: 0; /* 縮まないようにする */
+  }
+   .deletePairButton:hover {
+       background-color: #d4380d;
+   }
+  
+  
+  .addPairButton {
+    margin-top: 0.5rem;
+    padding: 0.5rem 1rem;
+    cursor: pointer;
+    /* .button スタイルを一部継承しても良い */
+     background-color: #6c757d;
+     color: white;
+     border: none;
+     border-radius: 4px;
+  }
+   .addPairButton:hover {
+       background-color: #5a6268;
+   }
+  
+   .hintText {
+       display: block;
+       margin-top: 0.25rem;
+       font-size: 0.85em;
+       color: #6c757d;
+   }
+  
+  .cancelLink {
+      /* marginLeft: '1rem', */ /* gap で代替 */
+      color: #6c757d;
+      text-decoration: none;
+      padding: 0.75rem 0; /* ボタンと高さを合わせる */
+  }
+  .cancelLink:hover {
+      text-decoration: underline;
+  }
+  
+  /* エラーメッセージ用スタイル */
+  .errorMessage {
+      color: red;
+      margin-top: 1rem;
+      font-weight: bold;
+  }
