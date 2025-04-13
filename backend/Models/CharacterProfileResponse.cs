@@ -9,5 +9,6 @@ public record CharacterProfileResponse(
     string? SystemPrompt,
     string? ExampleDialogue,
     string? AvatarImageUrl,
-    bool IsActive
+    bool IsActive,
+    bool IsSystemPromptCustomized
 );

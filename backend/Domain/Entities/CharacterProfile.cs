@@ -14,25 +14,31 @@ namespace AiRoleplayChat.Backend.Domain.Entities
         public string Name { get; set; } = string.Empty;
 
         [Column(TypeName = "TEXT")]
-        public string? Personality { get; set; } 
+        public string? Personality { get; set; }
 
         [Column(TypeName = "TEXT")]
-        public string? Tone { get; set; } 
+        public string? Tone { get; set; }
 
         [Column(TypeName = "TEXT")]
-        public string? Backstory { get; set; } 
+        public string? Backstory { get; set; }
 
         [Column(TypeName = "TEXT")]
-        public string? SystemPrompt { get; set; } 
+        public string? SystemPrompt { get; set; }
 
         [Column(TypeName = "JSON")] // MySQLのJSON型に対応 (なければTEXTでも可)
-        public string? ExampleDialogue { get; set; } 
+        public string? ExampleDialogue { get; set; }
 
         [StringLength(2083)] // URLの最大長を考慮
-        public string? AvatarImageUrl { get; set; } 
+        public string? AvatarImageUrl { get; set; }
 
         [Required]
         public bool IsActive { get; set; } = true; // デフォルト値を設定
+
+        /// <summary>
+        /// SystemPrompt がユーザーによってカスタムされたかどうかを示すフラグ
+        /// </summary>
+        [Required] // データベース上では NULL 不可にする
+        public bool IsSystemPromptCustomized { get; set; } = false;
 
         [Required]
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow; // デフォルト値を設定 (UTC推奨)

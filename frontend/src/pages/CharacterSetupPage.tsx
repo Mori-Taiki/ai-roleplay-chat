@@ -2,8 +2,8 @@
 import React, { useState, useEffect } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom"; // React Router のフックをインポート
 import { CharacterProfileResponse } from "../models/CharacterProfileResponse"; // データ取得時に使う
-import { CreateCharacterProfileRequest } from '../models/CreateCharacterProfileRequest'; // データ送信時に使う
-import { UpdateCharacterProfileRequest } from '../models/UpdateCharacterProfileRequest'; // データ送信時に使う
+import { CreateCharacterProfileRequest } from "../models/CreateCharacterProfileRequest"; // データ送信時に使う
+import { UpdateCharacterProfileRequest } from "../models/UpdateCharacterProfileRequest"; // データ送信時に使う
 
 const CharacterSetupPage: React.FC = () => {
   // --- ルーター関連フック ---
@@ -21,6 +21,7 @@ const CharacterSetupPage: React.FC = () => {
   const [exampleDialogue, setExampleDialogue] = useState<string>("");
   const [avatarImageUrl, setAvatarImageUrl] = useState<string>("");
   const [isActive, setIsActive] = useState<boolean>(true);
+  const [isCustomChecked, setIsCustomChecked] = useState<boolean>(false);
 
   // --- データ読み込み用の状態管理 ---
   const [isLoading, setIsLoading] = useState<boolean>(false); // ローディング状態
@@ -66,6 +67,7 @@ const CharacterSetupPage: React.FC = () => {
           setExampleDialogue(data.exampleDialogue ?? "");
           setAvatarImageUrl(data.avatarImageUrl ?? "");
           setIsActive(data.isActive);
+          setIsCustomChecked(data.isSystemPromptCustomized);
 
           console.log("キャラクターデータの読み込み完了:", data);
         } catch (err) {
@@ -117,43 +119,38 @@ const CharacterSetupPage: React.FC = () => {
           exampleDialogue: dialogueJsonString || null,
           avatarImageUrl: avatarImageUrl || null,
           isActive,
+          isSystemPromptCustomized: isCustomChecked,
         };
         console.log("Updating character:", characterId, requestData);
 
-        response = await fetch(
-          `${apiUrl}/${characterId}`,
-          {
-            method: "PUT",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify(requestData),
-          }
-        );
+        response = await fetch(`${apiUrl}/${characterId}`, {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(requestData),
+        });
 
         if (!response.ok) {
           // 404 Not Found や 400 Bad Request など
-          const errorData = await response
-            .json()
-            .catch(() => ({
-              message: `更新に失敗しました (${response.status})`,
-            }));
+          const errorData = await response.json().catch(() => ({
+            message: `更新に失敗しました (${response.status})`,
+          }));
           throw new Error(
             errorData.message || `更新に失敗しました (${response.status})`
           );
         }
 
         alert("キャラクター情報を更新しました！");
-
       } else {
         // --- 新規登録 (POST) ---
-        const requestData : CreateCharacterProfileRequest = {
+        const requestData: CreateCharacterProfileRequest = {
           // CreateCharacterProfileRequest に対応するオブジェクト
           name,
           personality,
           tone,
           backstory,
-          systemPrompt: systemPrompt || null,
+          systemPrompt: isCustomChecked ? systemPrompt || null : null,
           exampleDialogue: dialogueJsonString || null,
           avatarImageUrl: avatarImageUrl || null,
           isActive,
@@ -170,11 +167,9 @@ const CharacterSetupPage: React.FC = () => {
 
         if (!response.ok) {
           // 400 Bad Request など
-          const errorData = await response
-            .json()
-            .catch(() => ({
-              message: `登録に失敗しました (${response.status})`,
-            }));
+          const errorData = await response.json().catch(() => ({
+            message: `登録に失敗しました (${response.status})`,
+          }));
           throw new Error(
             errorData.message || `登録に失敗しました (${response.status})`
           );
@@ -288,6 +283,27 @@ const CharacterSetupPage: React.FC = () => {
 
         <div style={styles.formGroup}>
           <label htmlFor="systemPrompt">システムプロンプト (任意):</label>
+          <div
+            style={{
+              ...styles.formGroup,
+              flexDirection: "row",
+              alignItems: "center",
+              marginBottom: "0.5rem",
+            }}
+          >
+            {" "}
+            <input
+              type="checkbox"
+              id="isCustomChecked"
+              checked={isCustomChecked}
+              onChange={(e) => setIsCustomChecked(e.target.checked)}
+              style={{ marginRight: "0.5rem", cursor: "pointer" }} // クリックしやすく
+            />
+            {/* ラベルもクリック可能にするため htmlFor を使用 */}
+            <label htmlFor="isCustomChecked" style={{ cursor: "pointer" }}>
+              システムプロンプトをカスタムする
+            </label>
+          </div>
           <textarea
             id="systemPrompt"
             value={systemPrompt}
@@ -295,6 +311,7 @@ const CharacterSetupPage: React.FC = () => {
             rows={5}
             placeholder="入力しない場合は性格などから自動生成されます"
             style={styles.textarea}
+            disabled={!isCustomChecked}
           />
         </div>
 

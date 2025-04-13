@@ -54,6 +54,7 @@ public class CharacterProfilesController : ControllerBase
             ExampleDialogue = request.ExampleDialogue,
             AvatarImageUrl = request.AvatarImageUrl,
             IsActive = true,
+            IsSystemPromptCustomized = !string.IsNullOrWhiteSpace(request.SystemPrompt),
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow,
             UserId = 1
@@ -72,7 +73,8 @@ public class CharacterProfilesController : ControllerBase
             newProfile.SystemPrompt,
             newProfile.ExampleDialogue,
             newProfile.AvatarImageUrl,
-            newProfile.IsActive
+            newProfile.IsActive,
+            newProfile.IsSystemPromptCustomized
         );
 
         return CreatedAtAction(nameof(GetCharacterProfile), new { id = newProfile.Id }, responseDto);
@@ -95,7 +97,8 @@ public class CharacterProfilesController : ControllerBase
                 p.SystemPrompt,
                 p.ExampleDialogue,
                 p.AvatarImageUrl,
-                p.IsActive
+                p.IsActive,
+                p.IsSystemPromptCustomized
             ))
             .ToListAsync();
 
@@ -124,7 +127,8 @@ public class CharacterProfilesController : ControllerBase
             profile.SystemPrompt,
             profile.ExampleDialogue,
             profile.AvatarImageUrl,
-            profile.IsActive
+            profile.IsActive,
+            profile.IsSystemPromptCustomized
         );
 
         return Ok(response);
@@ -153,15 +157,33 @@ public class CharacterProfilesController : ControllerBase
         // }
         // ------
 
+        string finalSystemPrompt; // 最終的に保存する SystemPrompt
+        if (request.IsSystemPromptCustomized && !string.IsNullOrWhiteSpace(request.SystemPrompt))
+        {
+            finalSystemPrompt = request.SystemPrompt ?? "";
+            _logger.LogInformation("Updating Character {Id} with user-customized SystemPrompt.", id);
+        }
+        else
+        {
+            // --- 自動生成 ---
+            _logger.LogInformation("Auto-generating SystemPrompt for Character {Id} based on other fields.", id);
+            finalSystemPrompt = $"あなたはキャラクター「{request.Name}」です。\n" +
+                                $"性格: {request.Personality ?? "未設定"}\n" +
+                                $"口調: {request.Tone ?? "未設定"}\n" +
+                                $"背景: {request.Backstory ?? "未設定"}\n" +
+                                "ユーザーと自然で魅力的な対話を行ってください。";
+        }
+
         // 既存エンティティのプロパティをリクエスト DTO の値で更新
         existingProfile.Name = request.Name;
         existingProfile.Personality = request.Personality;
         existingProfile.Tone = request.Tone;
         existingProfile.Backstory = request.Backstory;
-        existingProfile.SystemPrompt = request.SystemPrompt; // 更新された SystemPrompt を設定
+        existingProfile.SystemPrompt = finalSystemPrompt;
         existingProfile.ExampleDialogue = request.ExampleDialogue;
         existingProfile.AvatarImageUrl = request.AvatarImageUrl;
         existingProfile.IsActive = request.IsActive;
+        existingProfile.IsSystemPromptCustomized = request.IsSystemPromptCustomized;
         existingProfile.UpdatedAt = DateTime.UtcNow; // 更新日時を更新
 
         try

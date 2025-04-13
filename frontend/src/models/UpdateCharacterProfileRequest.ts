@@ -7,4 +7,5 @@ export interface UpdateCharacterProfileRequest {
     exampleDialogue: string | null; // これは JSON 文字列の想定
     avatarImageUrl: string | null;
     isActive: boolean;
+    isSystemPromptCustomized: boolean;
   }

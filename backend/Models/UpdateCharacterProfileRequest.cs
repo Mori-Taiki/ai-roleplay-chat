@@ -14,5 +14,6 @@ public record UpdateCharacterProfileRequest(
     string? ExampleDialogue,
     [Url(ErrorMessage = "有効なURLを入力してください。")]
     string? AvatarImageUrl,
-    bool IsActive
+    bool IsActive,
+    bool IsSystemPromptCustomized
 );
