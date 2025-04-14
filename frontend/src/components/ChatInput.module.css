@@ -1,0 +1,21 @@
+/* src/components/ChatInput.module.css */
+.inputArea {
+    display: flex;
+    align-items: center;
+    padding: 0.5rem 1rem;
+    border-top: 1px solid #ccc;
+    background-color: #f0f0f0; /* 入力エリアの背景色 */
+  }
+  
+  .input {
+    flex-grow: 1; /* 利用可能なスペースを埋める */
+    padding: 0.6rem 0.8rem;
+    border: 1px solid #ccc;
+    border-radius: 20px; /* 角を丸くする */
+    margin-right: 0.5rem;
+    font-size: 1rem;
+  }
+  
+  .imageButton {
+    margin-left: 0.5rem; /* 画像生成ボタンとの間隔 */
+  }

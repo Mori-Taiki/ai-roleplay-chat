@@ -1,0 +1,19 @@
+.pageContainer {
+  display: flex;
+  flex-direction: column;
+  height: 90vh; /* ★ 画面の高さいっぱいに広げるなど */
+  max-width: 800px; /* ★ 最大幅を設定 */
+  margin: 1rem auto; /* 中央寄せ */
+  border: 1px solid #ccc;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+  background-color: #fff; /* ページ全体の背景 */
+}
+
+.pageContainer h1 {
+    padding: 0.5rem 1rem;
+    margin: 0;
+    font-size: 1.2rem;
+    text-align: center;
+    border-bottom: 1px solid #eee;
+    background-color: #f8f9fa; /* ヘッダー背景 */
+}

@@ -1,8 +1,11 @@
-import React, { useState, useEffect, useRef, useCallback, useReducer } from 'react';
+import React, { useState, useEffect, useCallback, useReducer } from 'react';
 import { useParams } from 'react-router-dom';
 import { useChatApi } from '../hooks/useChatApi';
 import { v4 as uuidv4 } from 'uuid';
-import './ChatPage.css';
+import styles from './ChatPage.module.css';
+
+import MessageList from '../components/MessageList'; // インポート
+import ChatInput from '../components/ChatInput'; // インポート
 
 interface Message {
   id: string;
@@ -67,7 +70,6 @@ function ChatPage() {
   const [state, dispatch] = useReducer(chatReducer, initialState);
   const { messages } = state;
 
-  const chatWindowRef = useRef<HTMLDivElement>(null);
   const { isSendingMessage, isGeneratingImage, sendMessage, generateImage, error: apiError } = useChatApi();
   const isLoading = isSendingMessage || isGeneratingImage;
 
@@ -78,7 +80,7 @@ function ChatPage() {
     }
   }, [apiError]);
 
-  const handleSendMessage = useCallback(async () => {
+  const handleSendMessageCallback = useCallback(async () => {
     const trimmedInput = inputValue.trim();
     if (!trimmedInput || isLoading || !characterId) return;
 
@@ -95,7 +97,7 @@ function ChatPage() {
     // エラー処理は useEffect で apiError を監視して行われる
   }, [inputValue, isLoading, characterId, sendMessage /*, history */]);
 
-  const handleGenerateImage = useCallback(async () => {
+  const handleGenerateImageCallback = useCallback(async () => {
     const promptForImage = inputValue.trim();
     if (isLoading || !promptForImage || !characterId) return;
     setInputValue('');
@@ -115,7 +117,7 @@ function ChatPage() {
   const handleKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
     // Enterキーでメッセージ送信 (画像生成はボタンクリックのみとする)
     if (event.key === 'Enter' && !isLoading) {
-      handleSendMessage();
+      handleSendMessageCallback();
     }
   };
 
@@ -124,48 +126,23 @@ function ChatPage() {
   };
 
   return (
-    <div className="app-container">
-      <h1>AIロールプレイチャット (仮)</h1>
-      <div className="chat-window" ref={chatWindowRef}>
-        {messages.map((msg) => (
-          <div key={msg.id} className={`message ${msg.sender}`}>
-            <span className="sender-label">{msg.sender === 'user' ? 'あなた' : 'AI'}</span>
-            {/* 画像URLがあれば画像を表示 */}
-            {msg.imageUrl && (
-              <img
-                src={msg.imageUrl}
-                alt="生成された画像"
-                style={{ maxWidth: '80%', maxHeight: '300px', marginTop: '5px', display: 'block' }} // スタイルはお好みで
-              />
-            )}
-            {/* テキストがあればテキストを表示 */}
-            {msg.text && <p className="message-text">{msg.text}</p>}
-          </div>
-        ))}
-        {/* ローディング表示 */}
-        {isLoading && (
-          <div className="message ai loading">
-            <span className="sender-label">AI</span>
-            <p className="message-text">考え中...</p>
-          </div>
-        )}
-      </div>
-      <div className="input-area">
-        <input
-          type="text"
-          value={inputValue}
-          onChange={handleInputChange}
-          onKeyDown={handleKeyDown}
-          placeholder="メッセージを入力..."
-          disabled={isLoading}
-        />
-        <button onClick={handleSendMessage} disabled={isLoading}>
-          {isLoading ? '送信中...' : '送信'}
-        </button>
-        <button onClick={handleGenerateImage} disabled={isLoading} style={{ marginLeft: '5px' }}>
-          {isLoading ? '生成中...' : '画像生成'}
-        </button>
-      </div>
+    <div className={styles.pageContainer}>
+      {' '}
+      {/* ChatPage 用のルートコンテナ */}
+      <h1>AIロールプレイチャット - キャラクターID: {characterId}</h1>
+      {/* MessageList コンポーネントを使用 */}
+      <MessageList messages={messages} isLoading={isLoading} />
+      {/* ChatInput コンポーネントを使用 */}
+      <ChatInput
+        value={inputValue}
+        onChange={handleInputChange}
+        onSendMessage={handleSendMessageCallback}
+        onGenerateImage={handleGenerateImageCallback}
+        onKeyDown={handleKeyDown}
+        isLoading={isLoading}
+        // isSendDisabled={isSendingMessage} // 個別制御する場合
+        // isImageGenDisabled={isGeneratingImage} // 個別制御する場合
+      />
     </div>
   );
 }
