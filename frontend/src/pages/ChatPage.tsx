@@ -1,13 +1,62 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { useParams } from 'react-router-dom'; // useParams をインポート
-import { useChatApi } from '../hooks/useChatApi'; // 作成したフックをインポート
+import React, { useState, useEffect, useRef, useCallback, useReducer } from 'react';
+import { useParams } from 'react-router-dom';
+import { useChatApi } from '../hooks/useChatApi';
+import { v4 as uuidv4 } from 'uuid';
 import './ChatPage.css';
 
 interface Message {
-  id: number;
+  id: string;
   sender: 'user' | 'ai';
   text: string;
   imageUrl?: string;
+}
+
+interface ChatState {
+  messages: Message[];
+}
+
+type ChatAction =
+  | { type: 'ADD_USER_MESSAGE'; payload: { text: string } }
+  | { type: 'ADD_AI_MESSAGE'; payload: { text: string } }
+  | { type: 'ADD_AI_IMAGE'; payload: { text: string; imageUrl: string } }
+  | { type: 'ADD_ERROR_MESSAGE'; payload: { text: string } };
+
+const initialState: ChatState = {
+  messages: [],
+};
+
+// Reducer 関数: 現在の状態とアクションを受け取り、新しい状態を返す
+function chatReducer(state: ChatState, action: ChatAction): ChatState {
+  switch (action.type) {
+    case 'ADD_USER_MESSAGE':
+      return {
+        ...state,
+        messages: [...state.messages, { id: uuidv4(), sender: 'user', text: action.payload.text }],
+      };
+    case 'ADD_AI_MESSAGE':
+      return {
+        ...state,
+        messages: [...state.messages, { id: uuidv4(), sender: 'ai', text: action.payload.text }],
+      };
+    case 'ADD_AI_IMAGE':
+      return {
+        ...state,
+        messages: [
+          ...state.messages,
+          { id: uuidv4(), sender: 'ai', text: action.payload.text, imageUrl: action.payload.imageUrl },
+        ],
+      };
+    case 'ADD_ERROR_MESSAGE':
+      // エラーメッセージも AI メッセージとして表示する例
+      return {
+        ...state,
+        messages: [...state.messages, { id: uuidv4(), sender: 'ai', text: `エラー: ${action.payload.text}` }],
+      };
+    default:
+      // 未知のアクションタイプの場合は、状態を変更せずに返す
+      // もしくはエラーをスローするなど、設計に応じて対応
+      return state;
+  }
 }
 
 function ChatPage() {
@@ -15,22 +64,17 @@ function ChatPage() {
   const characterId = parseInt(id ?? '0', 10);
 
   const [inputValue, setInputValue] = useState<string>('');
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [messageIdCounter, setMessageIdCounter] = useState<number>(0); // UUID などに変更推奨
+  const [state, dispatch] = useReducer(chatReducer, initialState);
+  const { messages } = state;
+
   const chatWindowRef = useRef<HTMLDivElement>(null);
-
-  // カスタムフックを使用
   const { isSendingMessage, isGeneratingImage, sendMessage, generateImage, error: apiError } = useChatApi();
-
-  // isLoading は isSendingMessage と isGeneratingImage を組み合わせる
   const isLoading = isSendingMessage || isGeneratingImage;
 
-  // API エラーを監視してメッセージに追加する (エラー表示方法は要検討)
   useEffect(() => {
     if (apiError) {
-      const errorMsg: Message = { id: Date.now(), sender: 'ai', text: `エラー: ${apiError}` };
-      setMessages((prev) => [...prev, errorMsg]);
-      // TODO: エラーをクリアする手段も必要
+      dispatch({ type: 'ADD_ERROR_MESSAGE', payload: { text: apiError } });
+      // TODO: エラーをクリアする処理 (例: ユーザー入力時、時間経過後など)
     }
   }, [apiError]);
 
@@ -38,29 +82,18 @@ function ChatPage() {
     const trimmedInput = inputValue.trim();
     if (!trimmedInput || isLoading || !characterId) return;
 
-    const newUserMessage: Message = {
-      id: messageIdCounter,
-      sender: 'user',
-      text: trimmedInput,
-    };
-    setMessages((prev) => [...prev, newUserMessage]);
-    setMessageIdCounter((prev) => prev + 1);
+    // ユーザーメッセージ追加アクションを dispatch
+    dispatch({ type: 'ADD_USER_MESSAGE', payload: { text: trimmedInput } });
     setInputValue('');
 
-    // カスタムフックの関数を呼び出し
-    const response = await sendMessage(characterId, trimmedInput /*, messageHistory */); // 履歴も渡す
+    const response = await sendMessage(characterId, trimmedInput /*, history */);
 
     if (response) {
-      const newAiMessage: Message = {
-        id: messageIdCounter,
-        sender: 'ai',
-        text: response.reply,
-      };
-      setMessages((prev) => [...prev, newAiMessage]);
-      setMessageIdCounter((prev) => prev + 2);
+      // AI メッセージ追加アクションを dispatch
+      dispatch({ type: 'ADD_AI_MESSAGE', payload: { text: response.reply } });
     }
-    // エラー処理はフック側で行われ、apiError state に反映される
-  }, [inputValue, isLoading, characterId, sendMessage /*, messageHistory */]); // 依存配列
+    // エラー処理は useEffect で apiError を監視して行われる
+  }, [inputValue, isLoading, characterId, sendMessage /*, history */]);
 
   const handleGenerateImage = useCallback(async () => {
     const promptForImage = inputValue.trim();
@@ -71,14 +104,11 @@ function ChatPage() {
 
     if (response) {
       const dataUrl = `data:${response.mimeType};base64,${response.base64Data}`;
-      const newImageMessage: Message = {
-        id: messageIdCounter,
-        sender: 'ai',
-        text: `「${promptForImage}」の画像を生成しました:`,
-        imageUrl: dataUrl,
-      };
-      setMessages((prev) => [...prev, newImageMessage]);
-      setMessageIdCounter((prev) => prev + 1);
+      // 画像メッセージ追加アクションを dispatch
+      dispatch({
+        type: 'ADD_AI_IMAGE',
+        payload: { text: `「${promptForImage}」の画像を生成しました:`, imageUrl: dataUrl },
+      });
     }
   }, [inputValue, isLoading, characterId, generateImage]);
 
