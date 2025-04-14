@@ -1,0 +1,67 @@
+/* src/pages/CharacterListPage.module.css (簡単なスタイル例) */
+.pageContainer {
+    padding: 1rem;
+  }
+  
+  .createButtonContainer {
+    margin-bottom: 1.5rem;
+  }
+  
+  .errorMessage {
+    color: #dc3545;
+    background-color: #f8d7da;
+    border: 1px solid #f5c6cb;
+    padding: 0.75rem 1.25rem;
+    border-radius: 0.25rem;
+    margin-bottom: 1rem;
+  }
+  
+  .characterList {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+  }
+  
+  .characterItem {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.8rem 0;
+    border-bottom: 1px solid #eee;
+  }
+  
+  .characterItem:last-child {
+    border-bottom: none;
+  }
+  
+  .characterInfo {
+    display: flex;
+    align-items: center;
+  }
+  
+  .avatar {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      margin-right: 0.8rem;
+      object-fit: cover; /* 画像がコンテナに合わせてトリミングされるように */
+  }
+  
+  
+  .characterInfo strong {
+    font-size: 1.1rem;
+    margin-right: 0.5rem;
+  }
+  
+  .characterId {
+    font-size: 0.85rem;
+    color: #6c757d;
+  }
+  
+  .characterActions {
+    display: flex;
+    align-items: center;
+  }
+  
+  /* 必要なら Button コンポーネントに size="sm" のスタイルを追加 */
+  /* .button.sm { padding: 0.25rem 0.5rem; font-size: 0.875rem; } */

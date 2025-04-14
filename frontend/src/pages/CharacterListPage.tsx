@@ -1,91 +1,69 @@
-// frontend/src/pages/CharacterListPage.tsx (新規作成)
-import React, { useState, useEffect } from "react";
-import { Link } from "react-router-dom"; // リンク作成用
-// バックエンドのDTOに対応する型定義をインポートします。
-// 事前に frontend/src/models/CharacterProfileResponse.ts のようなファイルを作成しておきましょう。
-import { CharacterProfileResponse } from "../models/CharacterProfileResponse";
+// src/pages/CharacterListPage.tsx (修正後)
+import React from 'react';
+import { Link } from 'react-router-dom';
+import { useCharacterList } from '../hooks/useCharacterList'; // 作成したフックをインポート
+import Button from '../components/Button';
+import styles from './CharacterListPage.module.css';
 
 const CharacterListPage: React.FC = () => {
-  // キャラクターリスト、ローディング状態、エラー状態を管理する state
-  const [characters, setCharacters] = useState<CharacterProfileResponse[]>([]);
-  const [isLoading, setIsLoading] = useState<boolean>(true);
-  const [error, setError] = useState<string | null>(null);
+  // カスタムフックから状態と関数を取得
+  const { characters, isLoading, error } = useCharacterList();
 
-  useEffect(() => {
-    const fetchCharacters = async () => {
-      setIsLoading(true);
-      setError(null);
-      try {
-        const response = await fetch(
-          "https://localhost:7000/api/characterprofiles"
-        );
-
-        if (!response.ok) {
-          throw new Error(
-            `キャラクターリストの取得に失敗しました: ${response.statusText}`
-          );
-        }
-
-        // レスポンスボディを JSON としてパース
-        const data: CharacterProfileResponse[] = await response.json();
-        setCharacters(data);
-      } catch (err) {
-        setError(
-          err instanceof Error ? err.message : "不明なエラーが発生しました"
-        );
-        console.error("Error fetching characters:", err);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    fetchCharacters(); // 定義した関数を実行
-  }, []); // 第2引数の空配列 [] は、この useEffect がコンポーネントのマウント時に1回だけ実行されることを意味します
-
-  // --- レンダリング部分 ---
   return (
-    <div>
+    <div className={styles.pageContainer}>
+      {' '}
+      {/* スタイル用コンテナ */}
       <h2>キャラクター一覧</h2>
-
-      {/* 新規作成画面へのリンク */}
-      <div style={{ marginBottom: "1rem" }}>
-        <Link to="/characters/new">
-          <button type="button">新規キャラクター作成</button>
-        </Link>
+      {/* 新規作成ボタン */}
+      <div className={styles.createButtonContainer}>
+        <Button as={Link} to="/characters/new" variant="primary">
+          新規キャラクター作成
+        </Button>
       </div>
-
-      {/* ローディング中の表示 */}
+      {/* ローディング表示 */}
       {isLoading && <p>キャラクターリストを読み込み中...</p>}
-
-      {/* エラー発生時の表示 */}
-      {error && <p style={{ color: "red" }}>エラー: {error}</p>}
-
-      {/* キャラクターリストの表示 (ローディング完了、エラーなしの場合) */}
+      {/* エラー表示 */}
+      {error && <p className={styles.errorMessage}>エラー: {error}</p>}
+      {/* キャラクターリスト */}
       {!isLoading && !error && (
-        <ul>
-          {/* characters 配列が空の場合のメッセージ */}
+        <ul className={styles.characterList}>
           {characters.length === 0 ? (
             <p>登録されているキャラクターがいません。</p>
           ) : (
-            // characters 配列をループして各キャラクターを表示
             characters.map((char) => (
-              <li
-                key={char.id}
-                style={{
-                  marginBottom: "0.5rem",
-                  borderBottom: "1px solid #eee",
-                  paddingBottom: "0.5rem",
-                }}
-              >
-                <strong>{char.name}</strong> (ID: {char.id})
-                {/* 各キャラクターの編集画面へのリンク */}
-                <Link
-                  to={`/characters/edit/${char.id}`}
-                  style={{ marginLeft: "1rem" }}
-                >
-                  <button type="button">編集</button>
-                </Link>
-                {/* TODO: 将来的にここに削除ボタンも追加検討 */}
+              <li key={char.id} className={styles.characterItem}>
+                <div className={styles.characterInfo}>
+                  {/* アバター画像 (任意) */}
+                  {char.avatarImageUrl && <img src={char.avatarImageUrl} alt={char.name} className={styles.avatar} />}
+                  <strong>{char.name}</strong>
+                  <span className={styles.characterId}>(ID: {char.id})</span>
+                  {/* 有効/無効表示 (任意) */}
+                  {/* <span className={char.isActive ? styles.active : styles.inactive}>
+                     {char.isActive ? '有効' : '無効'}
+                  </span> */}
+                </div>
+                <div className={styles.characterActions}>
+                  {/* 会話するボタン */}
+                  <Button
+                    as={Link}
+                    to={`/chat/${char.id}`}
+                    variant="secondary" // スタイルは適宜調整
+                    size="sm" // 小さいボタンにするなど (Buttonコンポーネントに size props が必要)
+                  >
+                    会話する
+                  </Button>
+                  {/* 編集ボタン */}
+                  <Button
+                    as={Link}
+                    to={`/characters/edit/${char.id}`}
+                    variant="secondary"
+                    size="sm" // 小さいボタンにするなど
+                    style={{ marginLeft: '0.5rem' }}
+                  >
+                    編集
+                  </Button>
+                  {/* TODO: 削除ボタン (削除機能実装時に追加) */}
+                </div>
               </li>
             ))
           )}

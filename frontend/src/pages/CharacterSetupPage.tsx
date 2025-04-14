@@ -1,17 +1,17 @@
-import React, { useEffect } from "react";
-import { useParams, useNavigate, Link } from "react-router-dom";
+import React, { useEffect } from 'react';
+import { useParams, useNavigate, Link } from 'react-router-dom';
 import {
   useForm,
   SubmitHandler,
   // Controller,
   useFieldArray,
-} from "react-hook-form"; // react-hook-form をインポート
-import { CreateCharacterProfileRequest } from "../models/CreateCharacterProfileRequest";
-import { UpdateCharacterProfileRequest } from "../models/UpdateCharacterProfileRequest";
-import { useCharacterProfile } from "../hooks/useCharacterProfile"; // カスタムフック
-import styles from "./CharacterSetupPage.module.css";
-import FormField from "../components/FormField";
-import Button from "../components/Button";
+} from 'react-hook-form'; // react-hook-form をインポート
+import { CreateCharacterProfileRequest } from '../models/CreateCharacterProfileRequest';
+import { UpdateCharacterProfileRequest } from '../models/UpdateCharacterProfileRequest';
+import { useCharacterProfile } from '../hooks/useCharacterProfile'; // カスタムフック
+import styles from './CharacterSetupPage.module.css';
+import FormField from '../components/FormField';
+import Button from '../components/Button';
 
 interface DialoguePairForm {
   user: string;
@@ -61,10 +61,10 @@ const CharacterSetupPage: React.FC = () => {
   } = useForm<CharacterFormData>({
     // デフォルト値を設定
     defaultValues: {
-      name: "",
-      personality: "",
-      tone: "",
-      backstory: "",
+      name: '',
+      personality: '',
+      tone: '',
+      backstory: '',
       systemPrompt: null,
       isSystemPromptCustomized: false,
       // exampleDialogue: null, // useFieldArray で管理
@@ -77,11 +77,11 @@ const CharacterSetupPage: React.FC = () => {
   // --- useFieldArray の設定 ---
   const { fields, append, remove } = useFieldArray({
     control, // useForm の control を渡す
-    name: "dialoguePairs", // 管理するフィールド配列の名前
+    name: 'dialoguePairs', // 管理するフィールド配列の名前
   });
 
   // isSystemPromptCustomized の値を監視
-  const isCustomChecked = watch("isSystemPromptCustomized");
+  const isCustomChecked = watch('isSystemPromptCustomized');
 
   // --- 編集モード時のデータ読み込みとフォームへの反映 ---
   useEffect(() => {
@@ -112,16 +112,16 @@ const CharacterSetupPage: React.FC = () => {
       reset({
         // react-hook-form の reset 関数でフォーム値を更新
         name: initialCharacterData.name,
-        personality: initialCharacterData.personality ?? "",
-        tone: initialCharacterData.tone ?? "",
-        backstory: initialCharacterData.backstory ?? "",
+        personality: initialCharacterData.personality ?? '',
+        tone: initialCharacterData.tone ?? '',
+        backstory: initialCharacterData.backstory ?? '',
         systemPrompt: initialCharacterData.systemPrompt ?? null,
         isSystemPromptCustomized: initialCharacterData.isSystemPromptCustomized,
         avatarImageUrl: initialCharacterData.avatarImageUrl ?? null,
         isActive: initialCharacterData.isActive,
         dialoguePairs: parsedPairs.map((p) => ({
-          user: p.user ?? "",
-          model: p.model ?? "",
+          user: p.user ?? '',
+          model: p.model ?? '',
         })), // useFieldArray 用
       });
     }
@@ -130,7 +130,7 @@ const CharacterSetupPage: React.FC = () => {
   // --- フォーム送信処理 ---
   const onSubmit: SubmitHandler<CharacterFormData> = async (formData) => {
     // formData には react-hook-form が収集したフォームデータが入る
-    console.log("Form Data:", formData); // デバッグ用
+    console.log('Form Data:', formData); // デバッグ用
 
     // exampleDialogue を JSON 文字列に変換 (useFieldArray 導入後は formData.dialoguePairs を使う)
     let dialogueJsonString: string | null = null;
@@ -140,9 +140,9 @@ const CharacterSetupPage: React.FC = () => {
         dialogueJsonString = JSON.stringify(formData.dialoguePairs);
       }
     } catch (stringifyError) {
-      console.error("Failed to stringify dialogue pairs:", stringifyError);
+      console.error('Failed to stringify dialogue pairs:', stringifyError);
       // setError("dialoguePairs", { type: "manual", message: "会話例の保存形式への変換に失敗しました。" }); // react-hook-form のエラーセット
-      alert("会話例データの保存形式への変換に失敗しました。"); // 一時的なアラート
+      alert('会話例データの保存形式への変換に失敗しました。'); // 一時的なアラート
       return;
     }
 
@@ -154,9 +154,7 @@ const CharacterSetupPage: React.FC = () => {
         tone: formData.tone,
         backstory: formData.backstory,
         // isCustomChecked が false なら systemPrompt は送らない (バックエンドで自動生成)
-        systemPrompt: formData.isSystemPromptCustomized
-          ? formData.systemPrompt
-          : null,
+        systemPrompt: formData.isSystemPromptCustomized ? formData.systemPrompt : null,
         isSystemPromptCustomized: formData.isSystemPromptCustomized,
         exampleDialogue: dialogueJsonString,
         avatarImageUrl: formData.avatarImageUrl,
@@ -164,7 +162,7 @@ const CharacterSetupPage: React.FC = () => {
       };
       const success = await updateCharacter(characterId, requestData); // カスタムフック呼び出し
       if (success) {
-        alert("キャラクター情報を更新しました！");
+        alert('キャラクター情報を更新しました！');
         // 必要なら一覧ページへリダイレクトなど
         // navigate('/characters');
       }
@@ -175,9 +173,7 @@ const CharacterSetupPage: React.FC = () => {
         personality: formData.personality,
         tone: formData.tone,
         backstory: formData.backstory,
-        systemPrompt: formData.isSystemPromptCustomized
-          ? formData.systemPrompt
-          : null, // カスタムする場合のみ送信
+        systemPrompt: formData.isSystemPromptCustomized ? formData.systemPrompt : null, // カスタムする場合のみ送信
         // isSystemPromptCustomized は Create リクエストには不要 (バックエンドで判定)
         exampleDialogue: dialogueJsonString,
         avatarImageUrl: formData.avatarImageUrl,
@@ -197,15 +193,25 @@ const CharacterSetupPage: React.FC = () => {
     if (
       window.confirm(
         `キャラクター「${
-          initialCharacterData?.name || "未名のキャラクター"
+          initialCharacterData?.name || '未名のキャラクター'
         }」(ID: ${characterId}) を本当に削除しますか？`
       )
     ) {
       const success = await deleteCharacter(characterId); // カスタムフック呼び出し
       if (success) {
         alert(`キャラクター (ID: ${characterId}) を削除しました。`);
-        navigate("/characters");
+        navigate('/characters');
       }
+    }
+  };
+
+  // 「会話する」ボタンのクリックハンドラ
+  const handleStartChat = () => {
+    if (characterId) {
+      navigate(`/chat/${characterId}`); // characterId を含むパスに遷移
+    } else {
+      console.error('キャラクターIDが無効なため、チャットを開始できません。');
+      // 必要であればエラーメッセージを表示
     }
   };
 
@@ -215,7 +221,7 @@ const CharacterSetupPage: React.FC = () => {
   }
   if (fetchError) {
     return (
-      <div style={{ color: "red" }}>
+      <div style={{ color: 'red' }}>
         エラー: {fetchError} <Link to="/characters">一覧に戻る</Link>
       </div>
     );
@@ -226,21 +232,11 @@ const CharacterSetupPage: React.FC = () => {
 
   return (
     <div>
-      <h1>
-        {isEditMode ? `キャラクター編集 (ID: ${id})` : "新規キャラクター作成"}
-      </h1>
+      <h1>{isEditMode ? `キャラクター編集 (ID: ${id})` : '新規キャラクター作成'}</h1>
 
       {/* handleSubmit で onSubmit 関数をラップ */}
       <form onSubmit={handleSubmit(onSubmit)}>
-        <FormField
-          type="text"
-          name="name"
-          label="名前"
-          register={register}
-          errors={errors}
-          required
-          maxLength={30}
-        />
+        <FormField type="text" name="name" label="名前" register={register} errors={errors} required maxLength={30} />
         <FormField
           type="textarea"
           name="personality"
@@ -250,15 +246,7 @@ const CharacterSetupPage: React.FC = () => {
           required
           rows={3}
         />
-        <FormField
-          type="textarea"
-          name="tone"
-          label="口調"
-          register={register}
-          errors={errors}
-          required
-          rows={3}
-        />
+        <FormField type="textarea" name="tone" label="口調" register={register} errors={errors} required rows={3} />
         <FormField
           type="textarea"
           name="backstory"
@@ -272,48 +260,33 @@ const CharacterSetupPage: React.FC = () => {
         {/* --- System Prompt --- */}
         <div className={styles.formGroup}>
           <label htmlFor="systemPrompt" className={styles.label}>
-            システムプロンプト ({isCustomChecked ? "カスタム入力" : "自動生成"}
+            システムプロンプト ({isCustomChecked ? 'カスタム入力' : '自動生成'}
             ):
           </label>
           <div /* Checkbox wrapper */>
             <input
               type="checkbox"
               id="isSystemPromptCustomized"
-              {...register("isSystemPromptCustomized")}
-              style={{ marginRight: "0.5rem", cursor: "pointer" }}
+              {...register('isSystemPromptCustomized')}
+              style={{ marginRight: '0.5rem', cursor: 'pointer' }}
             />
-            <label
-              htmlFor="isSystemPromptCustomized"
-              style={{ cursor: "pointer" }}
-            >
+            <label htmlFor="isSystemPromptCustomized" style={{ cursor: 'pointer' }}>
               システムプロンプトをカスタムする
             </label>
           </div>
           <textarea
             id="systemPrompt"
-            {...register("systemPrompt", {
-              required: isCustomChecked
-                ? "カスタムプロンプトは必須です"
-                : false,
+            {...register('systemPrompt', {
+              required: isCustomChecked ? 'カスタムプロンプトは必須です' : false,
             })}
             rows={5}
-            placeholder={
-              isCustomChecked ? "カスタムプロンプトを入力" : "自動生成されます"
-            }
+            placeholder={isCustomChecked ? 'カスタムプロンプトを入力' : '自動生成されます'}
             className={styles.textarea}
             disabled={!isCustomChecked}
           />
           {/* エラー表示 (必要なら) */}
-          {errors.systemPrompt && (
-            <span className={styles.errorMessage}>
-              {errors.systemPrompt.message}
-            </span>
-          )}
-          {!isCustomChecked && (
-            <small className={styles.hintText}>
-              カスタムチェックを入れると編集できます。
-            </small>
-          )}
+          {errors.systemPrompt && <span className={styles.errorMessage}>{errors.systemPrompt.message}</span>}
+          {!isCustomChecked && <small className={styles.hintText}>カスタムチェックを入れると編集できます。</small>}
         </div>
 
         <div className={styles.formGroup}>
@@ -322,11 +295,8 @@ const CharacterSetupPage: React.FC = () => {
             // key には field.id を使用 (react-hook-form が生成)
             <div key={field.id} className={styles.pairContainer}>
               {/* ユーザー発言 */}
-              <div style={{ marginRight: "1rem", flexGrow: 1 }}>
-                <label
-                  htmlFor={`dialoguePairs.${index}.user`}
-                  className={styles.subLabel}
-                >
+              <div style={{ marginRight: '1rem', flexGrow: 1 }}>
+                <label htmlFor={`dialoguePairs.${index}.user`} className={styles.subLabel}>
                   ユーザー発言 {index + 1}:
                 </label>
                 <textarea
@@ -334,44 +304,31 @@ const CharacterSetupPage: React.FC = () => {
                   // register でフィールドを登録 (名前はインデックス付き)
                   {...register(`dialoguePairs.${index}.user`, {
                     // 必要ならバリデーションルールを追加
-                    required: "ユーザー発言は必須です",
+                    required: 'ユーザー発言は必須です',
                   })}
                   rows={2}
-                  className={`${styles.textarea} ${
-                    errors.dialoguePairs?.[index]?.user ? styles.inputError : ""
-                  }`}
+                  className={`${styles.textarea} ${errors.dialoguePairs?.[index]?.user ? styles.inputError : ''}`}
                 />
                 {/* エラー表示 */}
                 {errors.dialoguePairs?.[index]?.user && (
-                  <span className={styles.errorMessage}>
-                    {errors.dialoguePairs[index]?.user?.message}
-                  </span>
+                  <span className={styles.errorMessage}>{errors.dialoguePairs[index]?.user?.message}</span>
                 )}
               </div>
               {/* モデル応答 */}
               <div style={{ flexGrow: 1 }}>
-                <label
-                  htmlFor={`dialoguePairs.${index}.model`}
-                  className={styles.subLabel}
-                >
+                <label htmlFor={`dialoguePairs.${index}.model`} className={styles.subLabel}>
                   モデル応答 {index + 1}:
                 </label>
                 <textarea
                   id={`dialoguePairs.${index}.model`}
                   {...register(`dialoguePairs.${index}.model`, {
-                    required: "モデル応答は必須です",
+                    required: 'モデル応答は必須です',
                   })}
                   rows={2}
-                  className={`${styles.textarea} ${
-                    errors.dialoguePairs?.[index]?.model
-                      ? styles.inputError
-                      : ""
-                  }`}
+                  className={`${styles.textarea} ${errors.dialoguePairs?.[index]?.model ? styles.inputError : ''}`}
                 />
                 {errors.dialoguePairs?.[index]?.model && (
-                  <span className={styles.errorMessage}>
-                    {errors.dialoguePairs[index]?.model?.message}
-                  </span>
+                  <span className={styles.errorMessage}>{errors.dialoguePairs[index]?.model?.message}</span>
                 )}
               </div>
               {/* 削除ボタン (remove 関数を使用) */}
@@ -392,14 +349,14 @@ const CharacterSetupPage: React.FC = () => {
           {fields.length < 10 && (
             <button
               type="button"
-              onClick={() => append({ user: "", model: "" })}
+              onClick={() => append({ user: '', model: '' })}
               className={styles.addPairButton}
               disabled={isProcessing} // 処理中は無効化
             >
               会話例を追加
             </button>
           )}
-          <small style={{ display: "block", marginTop: "0.5rem" }}>
+          <small style={{ display: 'block', marginTop: '0.5rem' }}>
             AIの応答スタイルを具体的に示す会話例を入力します。
           </small>
         </div>
@@ -415,12 +372,7 @@ const CharacterSetupPage: React.FC = () => {
 
         <div className={styles.formGroup}>
           <label htmlFor="isActive">
-            <input
-              type="checkbox"
-              id="isActive"
-              {...register("isActive")}
-              style={{ marginRight: "0.5rem" }}
-            />
+            <input type="checkbox" id="isActive" {...register('isActive')} style={{ marginRight: '0.5rem' }} />
             有効なキャラクター
           </label>
         </div>
@@ -429,39 +381,42 @@ const CharacterSetupPage: React.FC = () => {
         <div className={styles.buttonGroup}>
           {/* API 送信時のエラー表示 */}
           {apiSubmitError && (
-            <div
-              className={styles.errorMessage}
-              style={{ marginBottom: "1rem" }}
-            >
+            <div className={styles.errorMessage} style={{ marginBottom: '1rem' }}>
               {apiSubmitError}
             </div>
           )}
 
-          <Button
-            type="submit"
-            isLoading={isProcessing}
-            disabled={isProcessing}
-            loadingText="処理中..."
-          >
-            {isEditMode ? "更新" : "登録"}
+          <Button type="submit" isLoading={isProcessing} disabled={isProcessing} loadingText="処理中...">
+            {isEditMode ? '更新' : '登録'}
           </Button>
           {isEditMode && (
             <Button
               type="button"
               variant="danger" // Danger バリアントを使用
               onClick={handleDeleteClick}
-              isLoading={
-                isProcessing &&
-                false /* 削除専用のローディング状態管理が必要かも */
-              }
+              isLoading={isProcessing && false /* 削除専用のローディング状態管理が必要かも */}
               disabled={isProcessing}
-              style={{ marginLeft: "0.5rem" }}
+              style={{ marginLeft: '0.5rem' }}
             >
               削除
             </Button>
           )}
+
+          {/* --- 「会話する」ボタン --- */}
+          {isEditMode && characterId && (
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={handleStartChat}
+              disabled={isProcessing}
+              style={{ marginLeft: '0.5rem' }}
+            >
+              会話する
+            </Button>
+          )}
+
           {/* ... 他のボタン ... */}
-          <Link to="/characters" style={{ marginLeft: "1rem" }}>
+          <Link to="/characters" style={{ marginLeft: '1rem' }}>
             キャンセル
           </Link>
         </div>

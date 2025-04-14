@@ -12,6 +12,20 @@
     text-decoration: none; /* Link 用 */
     white-space: nowrap; /* ボタン内テキストの改行を防ぐ */
   }
+
+  /* Small サイズ */
+  .sm {
+    padding: 0.3rem 0.8rem;
+    font-size: 0.875rem;
+    /* 必要なら border-radius なども調整 */
+  }
+
+  /* Large サイズ (例) */
+  .lg {
+    padding: 0.8rem 1.5rem;
+    font-size: 1.125rem;
+    /* 必要なら border-radius なども調整 */
+  }
   
   .button:disabled {
     opacity: 0.65;
