@@ -12,6 +12,7 @@ interface UseChatApiReturn {
   sendMessage: (
     characterId: number,
     prompt: string,
+    sessionId: string | null,
     history?: { user: string; model: string }[]
   ) => Promise<ChatResponse | null>; // 履歴も渡せるように
   generateImage: (characterId: number, prompt: string) => Promise<ImageResponse | null>;
@@ -24,7 +25,7 @@ export const useChatApi = (): UseChatApiReturn => {
   const [error, setError] = useState<string | null>(null);
 
   const sendMessage = useCallback(
-    async (characterId: number, prompt: string, history: any[] = []): Promise<ChatResponse | null> => {
+    async (characterId: number, prompt: string, sessionId: string | null, history: any[] = []): Promise<ChatResponse | null> => {
       setIsSendingMessage(true);
       setError(null);
       try {
@@ -32,6 +33,7 @@ export const useChatApi = (): UseChatApiReturn => {
         const requestBody = {
           Prompt: prompt,
           CharacterProfileId: characterId,
+          SessionId: sessionId,
           History: history,
         };
         const response = await fetch(`${API_BASE_URL}/api/chat`, {

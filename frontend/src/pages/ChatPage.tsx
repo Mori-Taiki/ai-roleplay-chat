@@ -68,6 +68,7 @@ function ChatPage() {
 
   const [inputValue, setInputValue] = useState<string>('');
   const [state, dispatch] = useReducer(chatReducer, initialState);
+  const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
   const { messages } = state;
 
   const { isSendingMessage, isGeneratingImage, sendMessage, generateImage, error: apiError } = useChatApi();
@@ -88,14 +89,15 @@ function ChatPage() {
     dispatch({ type: 'ADD_USER_MESSAGE', payload: { text: trimmedInput } });
     setInputValue('');
 
-    const response = await sendMessage(characterId, trimmedInput /*, history */);
+    const response = await sendMessage(characterId, trimmedInput, currentSessionId /*, history */);
 
     if (response) {
       // AI メッセージ追加アクションを dispatch
       dispatch({ type: 'ADD_AI_MESSAGE', payload: { text: response.reply } });
+      setCurrentSessionId(response.sessionId);
     }
     // エラー処理は useEffect で apiError を監視して行われる
-  }, [inputValue, isLoading, characterId, sendMessage /*, history */]);
+  }, [inputValue, isLoading, characterId, sendMessage, currentSessionId /*, history */]);
 
   const handleGenerateImageCallback = useCallback(async () => {
     const promptForImage = inputValue.trim();

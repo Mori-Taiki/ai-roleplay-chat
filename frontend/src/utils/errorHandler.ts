@@ -43,7 +43,7 @@ export const getApiErrorMessage = async (
       contentType?.includes("application/json") ||
       contentType?.includes("application/problem+json")
     ) {
-      const errorData: ProblemDetails | any = await response.json();
+      const errorData: ProblemDetails  = await response.json();
 
       if (errorData) {
         // ProblemDetails の title を優先
@@ -101,7 +101,7 @@ export const getGenericErrorMessage = (
   error: unknown,
   operationName: string = "処理"
 ): string => {
-  let defaultMessage = `${operationName}中に予期せぬエラーが発生しました。`;
+  const defaultMessage = `${operationName}中に予期せぬエラーが発生しました。`;
 
   if (error instanceof Error) {
     // ネットワークエラーの簡易判定

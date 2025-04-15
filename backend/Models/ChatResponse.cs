@@ -1,3 +1,6 @@
 namespace AiRoleplayChat.Backend.Models;
 
-public record ChatResponse(string Reply);
+public record ChatResponse(
+    string Reply,
+    string SessionId
+);

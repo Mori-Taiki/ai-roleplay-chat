@@ -2,6 +2,7 @@ using AiRoleplayChat.Backend.Models;
 using AiRoleplayChat.Backend.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
+using Microsoft.EntityFrameworkCore;
 using AiRoleplayChat.Backend.Domain.Entities;
 using AiRoleplayChat.Backend.Data;
 
@@ -14,6 +15,7 @@ public class ChatController : ControllerBase
     private readonly IGeminiService _geminiService;
     private readonly ILogger<ChatController> _logger;
     private readonly AppDbContext _context;
+    private const int TEMP_USER_ID = 1; // 仮のユーザーID
 
     public ChatController(IGeminiService geminiService, ILogger<ChatController> logger, AppDbContext context)
     {
@@ -23,61 +25,139 @@ public class ChatController : ControllerBase
     }
 
     // POST /api/chat
-    [HttpPost]
-    public async Task<IActionResult> PostChat([FromBody] ChatRequest request)
+    [HttpPost(Name = "PostChatMessage")] // アクション名を変更推奨
+    [ProducesResponseType(typeof(ChatResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)] // Character が見つからない場合
+    public async Task<ActionResult<ChatResponse>> PostChatMessage([FromBody] ChatRequest request, CancellationToken cancellationToken)
     {
-        // ログ出力 (ILogger を使用)
-        _logger.LogInformation("POST /api/chat called with prompt: {Prompt}", request.Prompt);
+        _logger.LogInformation("Received chat request for Character {CharacterId}, Session {SessionId}", request.CharacterProfileId, request.SessionId ?? "New");
 
-        // --- 1. CharacterProfile を DB から取得 ---
-        var characterProfile = await _context.CharacterProfiles.FindAsync(request.CharacterProfileId);
-
-        // --- 2. 存在チェック ---
-        if (characterProfile == null)
+        // 0. キャラクターが存在するか確認
+        var character = await _context.CharacterProfiles.FindAsync(new object[] { request.CharacterProfileId }, cancellationToken);
+        if (character == null)
         {
-            // 有効な CharacterProfileId でない場合は 404 エラーを返す
-            return NotFound(new { message = $"指定されたキャラクターID ({request.CharacterProfileId}) は見つかりません。" });
-        }
-        // 必要であれば IsActive フラグなどもチェックする
-        // if (!characterProfile.IsActive) { ... }
-
-        // --- 3. SystemPrompt を取得 ---
-        var systemPrompt = characterProfile.SystemPrompt;
-
-        // SystemPrompt が空の場合のフォールバック処理（任意）
-        if (string.IsNullOrWhiteSpace(systemPrompt))
-        {
-            // ログを出力したり、デフォルトのプロンプトを設定したりする
-            Console.WriteLine($"Warning: CharacterProfile Id={characterProfile.Id} の SystemPrompt が空です。デフォルトを使用します。");
-            systemPrompt = "あなたはユーザーと会話する、親切なAIアシスタントです。"; // 仮のデフォルト値
+            _logger.LogWarning("Character not found: {CharacterId}", request.CharacterProfileId);
+            return NotFound($"Character with ID {request.CharacterProfileId} not found.");
         }
 
-        // --- 4. GeminiService 呼び出し  ---
+        // 1. セッションを特定または新規作成
+        ChatSession? session;
+        if (!string.IsNullOrEmpty(request.SessionId))
+        {
+            // 提供された SessionId で検索
+            session = await _context.ChatSessions
+                                    .FirstOrDefaultAsync(s => s.Id == request.SessionId
+                                    && s.CharacterProfileId == request.CharacterProfileId
+                                    && s.UserId == TEMP_USER_ID, cancellationToken);
+
+            if (session == null)
+            {
+                _logger.LogWarning("Session ID {SessionId} provided but not found or invalid for character {CharacterId}. Creating a new session.", request.SessionId, request.CharacterProfileId);
+                // 見つからない or 不正な場合は新しいセッションを作成（フォールバック）
+                session = await CreateNewSession(request.CharacterProfileId, TEMP_USER_ID, cancellationToken);
+            }
+            else if (session.EndTime != null)
+            {
+                _logger.LogWarning("Session ID {SessionId} provided but it has already ended. Creating a new session.", request.SessionId);
+                // 終了済みのセッションIDが指定された場合も新規作成
+                session = await CreateNewSession(request.CharacterProfileId, TEMP_USER_ID, cancellationToken);
+            }
+            else
+            {
+                _logger.LogInformation("Continuing existing session: {SessionId}", session.Id);
+                // 既存セッションの最終更新日時を更新 (任意)
+                session.UpdatedAt = DateTime.UtcNow;
+                // _context.ChatSessions.Update(session); // SaveChangesAsync 前なので不要な場合も
+            }
+        }
+        else
+        {
+            // SessionId が提供されなかったので新規作成
+            _logger.LogInformation("No SessionId provided. Creating a new session for character {CharacterId}", request.CharacterProfileId);
+            session = await CreateNewSession(request.CharacterProfileId, TEMP_USER_ID, cancellationToken);
+        }
+
+        // 2. ユーザーの発言を保存
+        var userMessage = new ChatMessage
+        {
+            SessionId = session.Id,
+            CharacterProfileId = request.CharacterProfileId,
+            UserId = TEMP_USER_ID,
+            Sender = "user",
+            Text = request.Prompt,
+            Timestamp = DateTime.UtcNow, // 発言時刻
+            // CreatedAt, UpdatedAt はデフォルト値を使用
+        };
+        _context.ChatMessages.Add(userMessage);
+        await _context.SaveChangesAsync(cancellationToken); // ユーザーメッセージを保存確定
+        _logger.LogInformation("User message saved for session {SessionId}", session.Id);
+
+
+        // 3. (TODO - 次のステップ) 履歴を取得
+        var history = await _context.ChatMessages
+                                .Where(m => m.SessionId == session.Id)
+                                .OrderBy(m => m.Timestamp) // 古い順
+                                .Take(20) // 例: 直近20件 (トークン数考慮が必要)
+                                .ToListAsync(cancellationToken);
+        // var formattedHistory = FormatHistoryForGemini(history);
+
+        // 4. GeminiService で応答を取得 (履歴はまだ渡さない)
+        string aiReplyText;
         try
         {
-            // 引数チェック (必要であれば)
-            if (string.IsNullOrWhiteSpace(request.Prompt))
-            {
-                _logger.LogWarning("Received empty prompt for /api/chat.");
-                return BadRequest(new { Message = "Prompt cannot be empty." });
-            }
-
-            // 注入された _geminiService を使用 
-            string replyText = await _geminiService.GenerateChatResponseAsync(request.Prompt, systemPrompt);
-
-            return Ok(new ChatResponse(replyText));
+            // ★ GeminiService に履歴を渡すように修正する必要あり
+            aiReplyText = await _geminiService.GenerateChatResponseAsync(
+                request.Prompt,
+                character.SystemPrompt ?? "Default system prompt", // キャラクターのシステムプロンプトを使用
+                history, // ★ 履歴を渡す
+                cancellationToken
+             );
+            _logger.LogInformation("Gemini response received for session {SessionId}", session.Id);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error occurred while processing /api/chat request for prompt: {Prompt}", request.Prompt);
-
-            // ControllerBase.Problem() を使用して 500 エラー応答を返す
-            // Problem() は標準的なエラー応答形式 (ProblemDetails) を生成します
-            return Problem(
-                title: "An error occurred while generating chat response.",
-                detail: ex.Message,
-                statusCode: StatusCodes.Status500InternalServerError
-            );
+            _logger.LogError(ex, "Error calling Gemini service for session {SessionId}", session.Id);
+            return StatusCode(StatusCodes.Status500InternalServerError, "AI応答の生成中にエラーが発生しました。");
         }
+
+
+        // 5. AI の応答を保存
+        var aiMessage = new ChatMessage
+        {
+            SessionId = session.Id,
+            CharacterProfileId = request.CharacterProfileId,
+            UserId = TEMP_USER_ID, // AIの発言だが、セッションのユーザーに関連付ける
+            Sender = "ai",
+            Text = aiReplyText,
+            Timestamp = DateTime.UtcNow,
+        };
+        _context.ChatMessages.Add(aiMessage);
+        await _context.SaveChangesAsync(cancellationToken); // AIメッセージを保存確定
+        _logger.LogInformation("AI message saved for session {SessionId}", session.Id);
+
+        // 6. フロントエンドに応答を返す
+        var response = new ChatResponse(aiReplyText, session.Id);
+
+        return Ok(response);
+    }
+
+    // セッションを新規作成するヘルパーメソッド
+    private async Task<ChatSession> CreateNewSession(int characterId, int userId, CancellationToken cancellationToken)
+    {
+        var newSession = new ChatSession
+        {
+            // Id はエンティティのデフォルト値で UUID が生成される想定
+            CharacterProfileId = characterId,
+            UserId = userId,
+            StartTime = DateTime.UtcNow,
+            // EndTime は NULL
+            // Metadata は NULL
+            // CreatedAt, UpdatedAt はデフォルト値
+        };
+        _context.ChatSessions.Add(newSession);
+        await _context.SaveChangesAsync(cancellationToken); // セッションをDBに保存
+        _logger.LogInformation("New session created: {SessionId}", newSession.Id);
+        return newSession;
     }
 }

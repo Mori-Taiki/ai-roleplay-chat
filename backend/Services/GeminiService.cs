@@ -1,3 +1,4 @@
+using AiRoleplayChat.Backend.Domain.Entities;
 using AiRoleplayChat.Backend.Models; // モデルクラスを使う
 using System.Text.Json; // JsonSerializerOptions を使う
 
@@ -30,7 +31,7 @@ public class GeminiService : IGeminiService // IGeminiService インターフェ
     /// <summary>
     /// 指定されたプロンプトに対するチャット応答を生成します。
     /// </summary>
-    public async Task<string> GenerateChatResponseAsync(string prompt, string systemPrompt, CancellationToken cancellationToken = default)
+    public async Task<string> GenerateChatResponseAsync(string prompt, string systemPrompt, List<ChatMessage> history, CancellationToken cancellationToken = default)
     {
         // 設定ファイルからチャット用の設定を読み込む
         var model = _config["Gemini:ChatModel"] ?? "gemini-1.5-flash-latest";
@@ -41,7 +42,7 @@ public class GeminiService : IGeminiService // IGeminiService インターフェ
         };
 
         // 共通メソッドを呼び出す
-        return await CallGeminiApiAsync(model, prompt, systemPrompt, generationConfig, cancellationToken);
+        return await CallGeminiApiAsync(model, prompt, systemPrompt, history, generationConfig, cancellationToken);
     }
 
     /// <summary>
@@ -61,28 +62,47 @@ public class GeminiService : IGeminiService // IGeminiService インターフェ
         string translationInstruction = $"Translate the following Japanese text into a detailed English prompt suitable for an image generation AI (like Imagen). Focus on descriptive nouns and adjectives.";
 
         // 共通メソッドを呼び出す
-        return await CallGeminiApiAsync(model, japaneseText, translationInstruction, generationConfig, cancellationToken);
+        return await CallGeminiApiAsync(model, japaneseText, translationInstruction, new List<ChatMessage>(), generationConfig, cancellationToken);
     }
 
     // --- Gemini API を呼び出す共通プライベートメソッド ---
-    private async Task<string> CallGeminiApiAsync(string modelName, string promptText, string? systemPrompt, GeminiGenerationConfig generationConfig, CancellationToken cancellationToken)
+    private async Task<string> CallGeminiApiAsync(string modelName, string promptText, string? systemPrompt, List<ChatMessage> history, GeminiGenerationConfig generationConfig, CancellationToken cancellationToken)
     {
         // APIキーはコンストラクタで取得・チェック済み
         var geminiApiUrl = $"https://generativelanguage.googleapis.com/v1beta/models/{modelName}:generateContent?key={_apiKey}";
         var httpClient = _httpClientFactory.CreateClient(); // HttpClientを取得
 
-        // リクエストボディを作成
+        // --- ★ Contents 配列の構築 (履歴を考慮) ---
+        var contents = new List<GeminiContent>();
+
+        // 1. 履歴を Contents 形式に変換して追加 (トークン数制限を考慮 - まずは件数制限)
+        const int MaxHistoryCount = 10;
+        var recentHistory = history.OrderByDescending(h => h.Timestamp).Take(MaxHistoryCount).Reverse(); // 新しい順に N 件取得し、再度古い順に戻す
+
+        foreach (var message in recentHistory)
+        {
+            contents.Add(new GeminiContent
+            {
+                Role = message.Sender == "user" ? "user" : "model",
+                Parts = new[] { new GeminiPart { Text = message.Text } }
+                // TODO: 画像メッセージの扱い (ImageUrl がある場合、Part に画像データを含めるか？ - Gemini API の仕様確認)
+            });
+        }
+
+        // 2. 新しいユーザープロンプトを追加
+        contents.Add(new GeminiContent
+        {
+            Role = "user", // 最後の発言は常に user
+            Parts = new[] { new GeminiPart { Text = promptText } }
+        });
+
         var geminiRequest = new GeminiApiRequest
         {
-            // TODO: 将来的には会話履歴も考慮して Contents を構築する必要がある
-            Contents = new[] { new GeminiContent { Parts = new[] { new GeminiPart { Text = promptText } } } },
+            Contents = contents.ToArray(),
             GenerationConfig = generationConfig,
-            // --- SystemInstruction の設定ロジックを追加 ---
             SystemInstruction = !string.IsNullOrWhiteSpace(systemPrompt)
-                                // systemPrompt があれば GeminiContent オブジェクトを作成
-                                ? new GeminiContent { Parts = new[] { new GeminiPart { Text = systemPrompt } } }
-                                // なければ null を設定
-                                : null
+        ? new GeminiContent { Parts = new[] { new GeminiPart { Text = systemPrompt } } }
+        : null
         };
 
         HttpResponseMessage responseRaw;
@@ -135,8 +155,8 @@ public class GeminiService : IGeminiService // IGeminiService インターフェ
         }
         catch (JsonException ex) // デシリアライズ失敗
         {
-             Console.Error.WriteLine($"Failed to deserialize Gemini API response ({modelName}): {ex.Message}. Raw response: {rawJsonResponseBody}");
-             throw new Exception($"Failed to parse response from Gemini API ({modelName}).", ex);
+            Console.Error.WriteLine($"Failed to deserialize Gemini API response ({modelName}): {ex.Message}. Raw response: {rawJsonResponseBody}");
+            throw new Exception($"Failed to parse response from Gemini API ({modelName}).", ex);
         }
     }
 }
