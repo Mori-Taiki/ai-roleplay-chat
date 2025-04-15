@@ -5,6 +5,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.EntityFrameworkCore;
 using AiRoleplayChat.Backend.Domain.Entities;
 using AiRoleplayChat.Backend.Data;
+using System.ComponentModel.DataAnnotations;
 
 namespace AiRoleplayChat.Backend.Controllers;
 
@@ -23,6 +24,70 @@ public class ChatController : ControllerBase
         _logger = logger;
         _context = context;
     }
+
+    [HttpGet("sessions/latest", Name = "GetLatestActiveSession")]
+    [ProducesResponseType(typeof(string), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<string>> GetLatestActiveSession(
+    [FromQuery][Required] int characterId,
+    CancellationToken cancellationToken)
+    {
+        // 仮のユーザーIDを使用
+        const int userId = TEMP_USER_ID;
+        _logger.LogInformation("Requesting latest active session for Character {CharacterId} and User {UserId}", characterId, userId);
+
+        var latestSession = await _context.ChatSessions
+            .Where(s => s.CharacterProfileId == characterId && s.UserId == userId && s.EndTime == null) // アクティブなセッションを検索
+            .OrderByDescending(s => s.StartTime) // 開始時刻が最新のもの
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (latestSession == null)
+        {
+            _logger.LogInformation("No active session found for Character {CharacterId} and User {UserId}", characterId, userId);
+            return NotFound("アクティブなチャットセッションが見つかりません。");
+        }
+
+        _logger.LogInformation("Found latest active session: {SessionId}", latestSession.Id);
+        return Ok(latestSession.Id); // セッションID (文字列) を返す
+    }
+
+    [HttpGet("history", Name = "GetChatHistory")]
+    [ProducesResponseType(typeof(IEnumerable<ChatMessageResponseDto>), StatusCodes.Status200OK)] // ★ DTO を使うことを推奨
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)] // セッションが見つからない場合
+    public async Task<ActionResult<IEnumerable<ChatMessageResponseDto>>> GetChatHistory(
+        [FromQuery][Required] string sessionId,
+        CancellationToken cancellationToken)
+    {
+        _logger.LogInformation("Received request to get chat history for Session {SessionId}", sessionId);
+
+        // 0. セッションが存在するか確認
+        var sessionExists = await _context.ChatSessions.AnyAsync(s => s.Id == sessionId, cancellationToken);
+        if (!sessionExists)
+        {
+            _logger.LogWarning("Session not found: {SessionId}", sessionId);
+            return NotFound($"Session with ID {sessionId} not found.");
+        }
+
+        // 1. 指定された sessionId に紐づくメッセージを Timestamp の昇順で取得
+        var messages = await _context.ChatMessages
+                                     .Where(m => m.SessionId == sessionId)
+                                     .OrderBy(m => m.Timestamp) // 古い順に取得
+                                                                // .Take(100) // 必要なら取得件数に上限を設ける
+                                     .Select(m => new ChatMessageResponseDto // ★ エンティティを直接返さず DTO にマッピング推奨
+                                     {
+                                         Id = m.Id, // フロントの Message 型に合わせて string にしても良い
+                                         Sender = m.Sender,
+                                         Text = m.Text,
+                                         ImageUrl = m.ImageUrl,
+                                         Timestamp = m.Timestamp // ISO 8601 形式の文字列で返すのが一般的
+                                     })
+                                     .ToListAsync(cancellationToken);
+
+        _logger.LogInformation("Returning {Count} messages for session {SessionId}", messages.Count, sessionId);
+        return Ok(messages);
+    }
+
 
     // POST /api/chat
     [HttpPost(Name = "PostChatMessage")] // アクション名を変更推奨

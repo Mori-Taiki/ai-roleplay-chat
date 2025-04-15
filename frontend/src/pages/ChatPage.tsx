@@ -6,19 +6,14 @@ import styles from './ChatPage.module.css';
 
 import MessageList from '../components/MessageList'; // インポート
 import ChatInput from '../components/ChatInput'; // インポート
-
-interface Message {
-  id: string;
-  sender: 'user' | 'ai';
-  text: string;
-  imageUrl?: string;
-}
+import { Message } from '../models/Message';
 
 interface ChatState {
   messages: Message[];
 }
 
 type ChatAction =
+  | { type: 'SET_HISTORY'; payload: Message[] }
   | { type: 'ADD_USER_MESSAGE'; payload: { text: string } }
   | { type: 'ADD_AI_MESSAGE'; payload: { text: string } }
   | { type: 'ADD_AI_IMAGE'; payload: { text: string; imageUrl: string } }
@@ -31,6 +26,8 @@ const initialState: ChatState = {
 // Reducer 関数: 現在の状態とアクションを受け取り、新しい状態を返す
 function chatReducer(state: ChatState, action: ChatAction): ChatState {
   switch (action.type) {
+    case 'SET_HISTORY':
+      return { ...state, messages: action.payload };
     case 'ADD_USER_MESSAGE':
       return {
         ...state,
@@ -71,8 +68,18 @@ function ChatPage() {
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
   const { messages } = state;
 
-  const { isSendingMessage, isGeneratingImage, sendMessage, generateImage, error: apiError } = useChatApi();
-  const isLoading = isSendingMessage || isGeneratingImage;
+  const {
+    isSendingMessage,
+    isGeneratingImage,
+    sendMessage,
+    generateImage,
+    error: apiError,
+    isLoadingHistory,
+    fetchHistory,
+    isLoadingLatestSession,
+    fetchLatestSessionId,
+  } = useChatApi();
+  const isLoading = isSendingMessage || isGeneratingImage || isLoadingHistory || isLoadingLatestSession;
 
   useEffect(() => {
     if (apiError) {
@@ -80,6 +87,37 @@ function ChatPage() {
       // TODO: エラーをクリアする処理 (例: ユーザー入力時、時間経過後など)
     }
   }, [apiError]);
+
+  useEffect(() => {
+    if (!characterId) return; // キャラクターIDがなければ何もしない
+
+    const loadLatestSession = async () => {
+      const latestSessionId = await fetchLatestSessionId(characterId);
+      if (latestSessionId) {
+        setCurrentSessionId(latestSessionId);
+        console.log('Latest session ID loaded:', latestSessionId);
+      } else {
+        // アクティブなセッションがない場合は null のまま（新規セッション扱い）
+        console.log('No active session found, starting a new one.');
+      }
+    };
+    loadLatestSession();
+  }, [characterId, fetchLatestSessionId]);
+
+  useEffect(() => {
+    const loadHistory = async () => {
+      if (currentSessionId) {
+        const history = await fetchHistory(currentSessionId);
+        if (history) {
+          dispatch({ type: 'SET_HISTORY', payload: history });
+        }
+      } else {
+          // セッションIDがない場合（新規）は履歴を空にする
+          dispatch({ type: 'SET_HISTORY', payload: [] });
+      }
+    };
+    loadHistory();
+  }, [currentSessionId, fetchHistory]); 
 
   const handleSendMessageCallback = useCallback(async () => {
     const trimmedInput = inputValue.trim();
@@ -129,11 +167,11 @@ function ChatPage() {
 
   return (
     <div className={styles.pageContainer}>
-      {' '}
       {/* ChatPage 用のルートコンテナ */}
       <h1>AIロールプレイチャット - キャラクターID: {characterId}</h1>
+      {(isLoadingLatestSession || isLoadingHistory) && <div>履歴を読み込み中...</div>}
       {/* MessageList コンポーネントを使用 */}
-      <MessageList messages={messages} isLoading={isLoading} />
+      <MessageList messages={messages} isLoading={isSendingMessage || isGeneratingImage} />
       {/* ChatInput コンポーネントを使用 */}
       <ChatInput
         value={inputValue}
