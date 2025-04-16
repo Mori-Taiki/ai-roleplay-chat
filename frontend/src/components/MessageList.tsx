@@ -12,11 +12,12 @@ interface Message {
 import styles from './MessageList.module.css';
 
 interface MessageListProps {
+  characterName: string;
   messages: Message[];
-  isLoading: boolean; // ローディング表示用
+  isLoading: boolean;
 }
 
-const MessageList: React.FC<MessageListProps> = ({ messages, isLoading }) => {
+const MessageList: React.FC<MessageListProps> = ({ characterName, messages, isLoading }) => {
   const chatWindowRef = useRef<HTMLDivElement>(null);
 
   // 自動スクロール処理
@@ -35,13 +36,13 @@ const MessageList: React.FC<MessageListProps> = ({ messages, isLoading }) => {
     // ★ CSS Modules を適用
     <div className={styles.chatWindow} ref={chatWindowRef}>
       {messages.map((msg) => (
-        <MessageItem key={msg.id} message={msg} />
+        <MessageItem key={msg.id} characterName = {characterName} message={msg} />
       ))}
       {/* ローディング表示 */}
       {isLoading && (
         // ★ CSS Modules を適用 (MessageItem と同じスタイルを流用 or 専用スタイル)
         <div className={`${styles.message} ${styles.ai} ${styles.loading}`}>
-          <span className={styles.senderLabel}>AI</span>
+          <span className={styles.senderLabel}>{characterName}</span>
           <p className={styles.messageText}>考え中...</p>
         </div>
       )}

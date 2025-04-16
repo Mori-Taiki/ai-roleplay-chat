@@ -9,17 +9,18 @@ interface Message {
 }
 
 interface MessageItemProps {
+  characterName: string;
   message: Message;
 }
 
 // ★ CSS Modules を使う場合
 import styles from './MessageItem.module.css';
 
-const MessageItem: React.FC<MessageItemProps> = ({ message }) => {
+const MessageItem: React.FC<MessageItemProps> = ({ characterName, message }) => {
   return (
     // ★ CSS Modules を適用
     <div key={message.id} className={`${styles.message} ${styles[message.sender]}`}>
-      <span className={styles.senderLabel}>{message.sender === 'user' ? 'あなた' : 'AI'}</span>
+      <span className={styles.senderLabel}>{message.sender === 'user' ? '' : characterName}</span>
       {/* 画像URLがあれば画像を表示 */}
       {message.imageUrl && (
         <img

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useReducer } from 'react';
-import { useParams } from 'react-router-dom';
+import { Link, useParams } from 'react-router-dom';
 import { useChatApi } from '../hooks/useChatApi';
+import { useCharacterProfile } from '../hooks/useCharacterProfile';
 import { v4 as uuidv4 } from 'uuid';
 import styles from './ChatPage.module.css';
 
@@ -35,18 +36,18 @@ function chatReducer(state: ChatState, action: ChatAction): ChatState {
         messages: [...state.messages, { id: uuidv4(), sender: 'user', text: action.payload.text }],
       };
     case 'ADD_AI_RESPONSE':
-    return {
-      ...state,
-      messages: [
-        ...state.messages,
-        {
-          id: uuidv4(),
-          sender: 'ai',
-          text: action.payload.text, // ペイロードからテキストを取得
-          imageUrl: action.payload.imageUrl, // ペイロードから画像URLを取得 (undefined かもしれない)
-        },
-      ],
-    };
+      return {
+        ...state,
+        messages: [
+          ...state.messages,
+          {
+            id: uuidv4(),
+            sender: 'ai',
+            text: action.payload.text, // ペイロードからテキストを取得
+            imageUrl: action.payload.imageUrl, // ペイロードから画像URLを取得 (undefined かもしれない)
+          },
+        ],
+      };
     // case 'ADD_AI_MESSAGE':
     //   return {
     //     ...state,
@@ -83,6 +84,13 @@ function ChatPage() {
   const { messages } = state;
 
   const {
+    character,
+    isLoading: isLoadingCharacter,
+    error: characterFetchError,
+    fetchCharacter,
+  } = useCharacterProfile();
+
+  const {
     isSendingMessage,
     isGeneratingImage,
     sendMessage,
@@ -93,7 +101,8 @@ function ChatPage() {
     isLoadingLatestSession,
     fetchLatestSessionId,
   } = useChatApi();
-  const isLoading = isSendingMessage || isGeneratingImage || isLoadingHistory || isLoadingLatestSession;
+  const isLoading =
+    isSendingMessage || isGeneratingImage || isLoadingHistory || isLoadingLatestSession || isLoadingCharacter;
 
   useEffect(() => {
     if (apiError) {
@@ -101,6 +110,15 @@ function ChatPage() {
       // TODO: エラーをクリアする処理 (例: ユーザー入力時、時間経過後など)
     }
   }, [apiError]);
+
+  useEffect(() => {
+    if (characterId > 0) {
+      // 有効な characterId の場合のみ実行
+      console.log(`Workspaceing character profile for ID: ${characterId}`);
+      fetchCharacter(characterId);
+    }
+    // characterId が変わったら再取得
+  }, [characterId, fetchCharacter]);
 
   useEffect(() => {
     if (!characterId) return; // キャラクターIDがなければ何もしない
@@ -126,12 +144,12 @@ function ChatPage() {
           dispatch({ type: 'SET_HISTORY', payload: history });
         }
       } else {
-          // セッションIDがない場合（新規）は履歴を空にする
-          dispatch({ type: 'SET_HISTORY', payload: [] });
+        // セッションIDがない場合（新規）は履歴を空にする
+        dispatch({ type: 'SET_HISTORY', payload: [] });
       }
     };
     loadHistory();
-  }, [currentSessionId, fetchHistory]); 
+  }, [currentSessionId, fetchHistory]);
 
   const handleSendMessageCallback = useCallback(async () => {
     const trimmedInput = inputValue.trim();
@@ -148,9 +166,9 @@ function ChatPage() {
       dispatch({
         type: 'ADD_AI_RESPONSE',
         payload: {
-          text: response.reply,       // AIのテキスト応答
-          imageUrl: response.imageUrl // 生成された画像のURL (nullかもしれない)
-        }
+          text: response.reply, // AIのテキスト応答
+          imageUrl: response.imageUrl, // 生成された画像のURL (nullかもしれない)
+        },
       });
       // セッションIDの更新はそのまま
       setCurrentSessionId(response.sessionId);
@@ -186,13 +204,32 @@ function ChatPage() {
     setInputValue(event.target.value);
   };
 
+    if (characterFetchError) {
+      return (
+          <div className={styles.pageContainer}>
+              <div style={{ color: 'red', padding: '1rem' }}>
+                  キャラクター情報の読み込みに失敗しました: {characterFetchError}
+                  <br />
+                  <Link to="/characters">キャラクター一覧に戻る</Link>
+              </div>
+          </div>
+      );
+  }
+
   return (
     <div className={styles.pageContainer}>
-      {/* ChatPage 用のルートコンテナ */}
-      <h1>AIロールプレイチャット - キャラクターID: {characterId}</h1>
+      <h1>
+        {isLoadingCharacter ? 'キャラクター情報読み込み中...' : `${character?.name ?? '不明なキャラクター'} `}
+        {/* もしアバターも表示するなら */}
+        {character?.avatarImageUrl && <img src={character.avatarImageUrl} alt={character.name} style={{height: '30px', width: '30px', borderRadius: '50%', marginLeft: '10px', verticalAlign: 'middle'}}/>}
+      </h1>
       {(isLoadingLatestSession || isLoadingHistory) && <div>履歴を読み込み中...</div>}
       {/* MessageList コンポーネントを使用 */}
-      <MessageList messages={messages} isLoading={isSendingMessage || isGeneratingImage} />
+      <MessageList
+        characterName={character?.name ?? '不明なキャラクター'}
+        messages={messages}
+        isLoading={isSendingMessage || isGeneratingImage}
+      />
       {/* ChatInput コンポーネントを使用 */}
       <ChatInput
         value={inputValue}
