@@ -2,6 +2,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { CharacterProfileResponse } from '../models/CharacterProfileResponse';
 import { getApiErrorMessage, getGenericErrorMessage } from '../utils/errorHandler';
+import { useAuth } from './useAuth';
 
 const API_BASE_URL = 'https://localhost:7000';
 
@@ -16,12 +17,18 @@ export const useCharacterList = (): UseCharacterListReturn => {
   const [characters, setCharacters] = useState<CharacterProfileResponse[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true); // 初期状態は true
   const [error, setError] = useState<string | null>(null);
+  const { acquireToken } = useAuth();
 
   const fetchCharacters = useCallback(async () => {
+    const accessToken = await acquireToken();
+    if (!accessToken) return null;
+
     setIsLoading(true);
     setError(null);
     try {
-      const response = await fetch(`${API_BASE_URL}/api/characterprofiles`);
+      const response = await fetch(`${API_BASE_URL}/api/characterprofiles`, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
       if (!response.ok) {
         const message = await getApiErrorMessage(response);
         throw new Error(message);
@@ -36,7 +43,7 @@ export const useCharacterList = (): UseCharacterListReturn => {
     } finally {
       setIsLoading(false);
     }
-  }, []); // useCallback の依存配列は空
+  }, [acquireToken]);
 
   // コンポーネントマウント時に自動的に取得開始
   useEffect(() => {

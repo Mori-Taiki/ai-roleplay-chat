@@ -2,11 +2,13 @@ using AiRoleplayChat.Backend.Models; // ImageGenRequest, ImageGenerationResponse
 using AiRoleplayChat.Backend.Services; // IGeminiService, IImagenService
 using Microsoft.AspNetCore.Mvc; // Controller関連
 using Microsoft.Extensions.Logging; // ILogger
+using Microsoft.AspNetCore.Authorization;
 
 namespace AiRoleplayChat.Backend.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
+[Authorize] 
 public class ImageController : ControllerBase
 {
     private readonly IGeminiService _geminiService;

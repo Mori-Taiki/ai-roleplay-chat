@@ -1,54 +1,75 @@
-// frontend/src/App.tsx (修正・リファクタリング案)
+// App.tsx (修正案)
 import React from 'react';
-// Routes, Route, Link, useParams を react-router-dom からインポート
-import { Routes, Route, Link } from 'react-router-dom';
-import './index.css';
-// 将来的には実際のコンポーネントを import します
+// ★ Outlet を react-router-dom からインポート
+import { Routes, Route, Link, Outlet} from 'react-router-dom';
+import './index.css'; // または App.css
 import ChatPage from './pages/ChatPage';
 import CharacterListPage from './pages/CharacterListPage';
 import CharacterSetupPage from './pages/CharacterSetupPage';
+import { AuthStatus } from './components/AuthStatus'; // AuthStatus をインポート
 
-// --- 仮のプレースホルダーコンポーネント (後で別ファイルに移動推奨) ---
-// ナビゲーションとタイトル、子要素を表示する簡単なラッパー
-const Placeholder = ({ title, children }: { title: string; children?: React.ReactNode }) => (
-  <div>
-    {/* 簡単なナビゲーションリンク */}
-    <nav
-      style={{
-        padding: '1rem',
-        borderBottom: '1px solid #ccc',
-        marginBottom: '1rem',
-      }}
-    >
-      <Link to="/">Chat</Link> | <Link to="/characters">Characters</Link> |{' '}
-      <Link to="/characters/new">New Character</Link>
-    </nav>
-    <h2>{title}</h2>
-    {/* props.children があれば表示 */}
-    {children}
-    <p>
-      <i>(This is a placeholder page)</i>
-    </p>
-  </div>
-);
+const AppLayout: React.FC = () => {
+  return (
+    <div>
+      {/* アプリケーション共通のヘッダーやナビゲーション */}
+      <nav style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        padding: '0.5rem 1.5rem',
+        borderBottom: '1px solid #eee',
+        marginBottom: '1rem'
+      }}>
+        {/* 左側のナビゲーションリンク */}
+        <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', gap: '1rem' }}>
+          {/* <li><Link to="/">ホーム (仮)</Link></li> */} {/* 必要ならホームへのリンク */}
+          <li><Link to="/characters">キャラクター一覧</Link></li>
+          <li><Link to="/characters/new">新規キャラクター作成</Link></li>
+          {/* 他に共通リンクがあればここに追加 */}
+        </ul>
+
+        {/* ★ 右側に認証ステータスを表示 */}
+        <AuthStatus />
+      </nav>
+
+      {/* ページごとのコンテンツがここに表示される */}
+      <main style={{ padding: '0 1.5rem' }}>
+        <Outlet /> {/* react-router-dom v6 の機能 */}
+      </main>
+
+      {/* (任意) フッターなど共通要素 */}
+    </div>
+  );
+};
 
 function App() {
   return (
-    <Routes>
-      <Route path="/" element={<div>ホームページ (仮)</div>} />
-      <Route path="/characters" element={<CharacterListPage />} />
-      <Route path="/characters/new" element={<CharacterSetupPage />} />
-      <Route path="/characters/edit/:id" element={<CharacterSetupPage />} />
-      <Route path="/chat/:id" element={<ChatPage />} />
-      <Route
-        path="*"
-        element={
-          <Placeholder title="404 Not Found">
-            <p>お探しのページは見つかりませんでした。</p>
-          </Placeholder>
-        }
-      />
-    </Routes>
+      <Routes>
+        {/* ★ AppLayout を使うルートを定義 */}
+        <Route path="/" element={<AppLayout />}> {/* ← 親ルート */}
+          {/* ↓ AppLayout の Outlet に表示される子ルートたち */}
+          <Route index element={<CharacterListPage />} /> {/* / にアクセスした場合 */}
+          <Route path="characters" element={<CharacterListPage />} />
+          <Route path="characters/new" element={<CharacterSetupPage />} />
+          <Route path="characters/edit/:id" element={<CharacterSetupPage />} />
+          <Route path="chat/:id" element={<ChatPage />} />
+
+          {/* 404 Not Found ページ */}
+          <Route
+            path="*"
+            element={
+              <div>
+                <h2>404 Not Found</h2>
+                <p>お探しのページは見つかりませんでした。</p>
+              </div>
+            }
+          />
+        </Route> 
+
+        {/* もしログインページなど、AppLayout を使わない独立したページがあれば、ここに追加 */}
+        {/* <Route path="/signin-oidc" element={<SigninCallback />} /> */}
+
+      </Routes>
   );
 }
 

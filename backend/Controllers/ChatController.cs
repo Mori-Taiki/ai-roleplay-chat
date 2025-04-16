@@ -6,11 +6,13 @@ using Microsoft.EntityFrameworkCore;
 using AiRoleplayChat.Backend.Domain.Entities;
 using AiRoleplayChat.Backend.Data;
 using System.ComponentModel.DataAnnotations;
+using Microsoft.AspNetCore.Authorization;
 
 namespace AiRoleplayChat.Backend.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
+[Authorize] 
 public class ChatController : ControllerBase
 {
     private readonly IGeminiService _geminiService;

@@ -3,11 +3,13 @@ using AiRoleplayChat.Backend.Domain.Entities; // CharacterProfile の名前空�
 using AiRoleplayChat.Backend.Models; // CreateCharacterProfileRequest の名前空間
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore; // Include this for ToListAsync, FindAsync etc.
+using Microsoft.AspNetCore.Authorization;
 
 namespace AiRoleplayChat.Backend.Controllers; // プロジェクトの実際の名前空間に合わせてください
 
 [ApiController]
 [Route("api/[controller]")]
+[Authorize] 
 public class CharacterProfilesController : ControllerBase
 {
     private readonly AppDbContext _context;
