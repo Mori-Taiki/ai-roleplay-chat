@@ -9,6 +9,7 @@ public class AppDbContext : DbContext
     public DbSet<CharacterProfile> CharacterProfiles { get; set; } = null!;
     public DbSet<ChatMessage> ChatMessages { get; set; } = null!;
     public DbSet<ChatSession> ChatSessions { get; set; } = null!;
+    public DbSet<User> Users { get; set; } = null!;
 
     public AppDbContext(DbContextOptions<AppDbContext> options) : base(options) { }
 
@@ -43,16 +44,16 @@ public class AppDbContext : DbContext
                   .HasDatabaseName("IX_ChatMessages_SessionId_Timestamp");
 
             // リレーションシップ (ChatSession)
-            entity.HasOne(d => d.Session) // ChatMessage は 1つの ChatSession を持つ
-                  .WithMany(p => p.Messages) // ChatSession は多くの ChatMessage を持つ
+            entity.HasOne(d => d.Session)
+                  .WithMany(p => p.Messages)
                   .HasForeignKey(d => d.SessionId)
                   .OnDelete(DeleteBehavior.Cascade); // セッション削除時にメッセージも削除
 
-            // リレーションシップ (CharacterProfile) - ChatSession経由で辿れるが、直接FKを持つ実装
+            // リレーションシップ (CharacterProfile)
             entity.HasOne(d => d.CharacterProfile)
                   .WithMany()
                   .HasForeignKey(d => d.CharacterProfileId)
-                  .OnDelete(DeleteBehavior.NoAction); // ChatSession側でCascade設定済みなのでNoActionに
+                  .OnDelete(DeleteBehavior.Cascade); // キャラ削除時にメッセージも削除
 
             entity.Property(e => e.Sender).HasMaxLength(10);
         });

@@ -1,24 +1,23 @@
-using AiRoleplayChat.Backend.Data;     // AppDbContext の名前空間
-using AiRoleplayChat.Backend.Domain.Entities; // CharacterProfile の名前空間
-using AiRoleplayChat.Backend.Models; // CreateCharacterProfileRequest の名前空間
+using AiRoleplayChat.Backend.Data;
+using AiRoleplayChat.Backend.Domain.Entities;
+using AiRoleplayChat.Backend.Models;
+using AiRoleplayChat.Backend.Services;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore; // Include this for ToListAsync, FindAsync etc.
+using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Authorization;
+using System.Security.Claims;
 
 namespace AiRoleplayChat.Backend.Controllers; // プロジェクトの実際の名前空間に合わせてください
 
 [ApiController]
-[Route("api/[controller]")]
-[Authorize] 
-public class CharacterProfilesController : ControllerBase
+public class CharacterProfilesController : BaseApiController
 {
     private readonly AppDbContext _context;
-    private readonly ILogger<ChatController> _logger;
 
-    public CharacterProfilesController(AppDbContext context, ILogger<ChatController> logger)
+    public CharacterProfilesController(AppDbContext context, IUserService userService, ILogger<CharacterProfilesController> logger)
+        : base(userService, logger)
     {
         _context = context;
-        _logger = logger;
     }
 
     // POST: api/characterprofiles
@@ -26,8 +25,12 @@ public class CharacterProfilesController : ControllerBase
     [ProducesResponseType(typeof(CharacterProfileResponse), StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<ActionResult<CharacterProfileResponse>> CreateCharacterProfile(
-        [FromBody] CreateCharacterProfileRequest request)
+        [FromBody] CreateCharacterProfileRequest request, CancellationToken cancellationToken)
     {
+        var (appUserId, errorResult) = await GetCurrentAppUserIdAsync(cancellationToken);
+        if (errorResult != null) return errorResult;
+        if (appUserId == null) return BadRequest("User ID cannot be null.");
+
         string systemPrompt;
         if (!string.IsNullOrWhiteSpace(request.SystemPrompt))
         {
@@ -59,7 +62,7 @@ public class CharacterProfilesController : ControllerBase
             IsSystemPromptCustomized = !string.IsNullOrWhiteSpace(request.SystemPrompt),
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow,
-            UserId = 1
+            UserId = appUserId
         };
 
         // DbContext を通じてデータベースに追加
@@ -84,12 +87,15 @@ public class CharacterProfilesController : ControllerBase
 
     // GET: api/characterprofiles
     [HttpGet(Name = "GetAllCharacterProfiles")]
-    [ProducesResponseType(StatusCodes.Status200OK)]
-    public async Task<ActionResult<IEnumerable<CharacterProfileResponse>>> GetAllCharacterProfiles()
+    [ProducesResponseType(typeof(IEnumerable<CharacterProfileResponse>), StatusCodes.Status200OK)]
+    public async Task<ActionResult<IEnumerable<CharacterProfileResponse>>> GetAllCharacterProfiles(CancellationToken cancellationToken)
     {
+        var (appUserId, errorResult) = await GetCurrentAppUserIdAsync(cancellationToken);
+        if (errorResult != null) return errorResult;
+
         var profiles = await _context.CharacterProfiles
-            // .Where(p => p.UserId == 1) // TODO: 将来的に認証と連携し、ログインユーザーのプロファイルのみ取得する場合は Where句 を追加
-            .OrderBy(p => p.Name) // 例: 名前順でソート
+            .Where(p => p.UserId == appUserId)
+            .OrderBy(p => p.Id)
             .Select(p => new CharacterProfileResponse(
                 p.Id,
                 p.Name,
@@ -109,11 +115,15 @@ public class CharacterProfilesController : ControllerBase
 
     // GET: api/characterprofiles/{id}
     [HttpGet("{id}", Name = "GetCharacterProfile")]
-    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(CharacterProfileResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<ActionResult<CharacterProfileResponse>> GetCharacterProfile(int id)
+    public async Task<ActionResult<CharacterProfileResponse>> GetCharacterProfile(int id, CancellationToken cancellationToken)
     {
-        var profile = await _context.CharacterProfiles.FindAsync(id);
+        var (appUserId, errorResult) = await GetCurrentAppUserIdAsync(cancellationToken);
+        if (errorResult != null) return errorResult;
+
+        var profile = await _context.CharacterProfiles
+            .FirstOrDefaultAsync(p => p.Id == id && p.UserId == appUserId, cancellationToken);
 
         if (profile == null)
         {
@@ -141,23 +151,19 @@ public class CharacterProfilesController : ControllerBase
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> UpdateCharacterProfile(int id, [FromBody] UpdateCharacterProfileRequest request)
+    public async Task<IActionResult> UpdateCharacterProfile(int id, [FromBody] UpdateCharacterProfileRequest request, CancellationToken cancellationToken)
     {
+        var (appUserId, errorResult) = await GetCurrentAppUserIdAsync(cancellationToken);
+        if (errorResult != null) return errorResult;
+
         // まず、指定された ID のエンティティが存在するか確認
-        var existingProfile = await _context.CharacterProfiles.FindAsync(id);
+        var existingProfile = await _context.CharacterProfiles
+            .FirstOrDefaultAsync(p => p.Id == id && p.UserId == appUserId, cancellationToken);
 
         if (existingProfile == null)
         {
             return NotFound();
         }
-
-        // --- オプション: より堅牢にするなら UserId のチェックもここで行う ---
-        // if (existingProfile.UserId != 1) // 仮のユーザーIDと比較
-        // {
-        //     // 権限がない、または操作対象が違う場合は 403 Forbidden や 404 NotFound を返す
-        //     return Forbid(); // または NotFound();
-        // }
-        // ------
 
         string finalSystemPrompt; // 最終的に保存する SystemPrompt
         if (request.IsSystemPromptCustomized && !string.IsNullOrWhiteSpace(request.SystemPrompt))
@@ -219,13 +225,17 @@ public class CharacterProfilesController : ControllerBase
 
 
     // DELETE: api/characterprofiles/{id}
-    [HttpDelete("{id}")]
-    [ProducesResponseType(StatusCodes.Status204NoContent)] // 成功 (削除完了、ボディなし)
-    [ProducesResponseType(StatusCodes.Status404NotFound)] // 削除対象が存在しない
-    public async Task<IActionResult> DeleteCharacterProfile(int id)
+    [HttpDelete("{id}", Name = "DeleteCharacterProfile")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> DeleteCharacterProfile(int id, CancellationToken cancellationToken)
     {
+        var (appUserId, errorResult) = await GetCurrentAppUserIdAsync(cancellationToken);
+        if (errorResult != null) return errorResult;
+
         // 削除対象のエンティティをDBから取得
-        var profileToDelete = await _context.CharacterProfiles.FindAsync(id);
+        var profileToDelete = await _context.CharacterProfiles
+            .FirstOrDefaultAsync(p => p.Id == id && p.UserId == appUserId, cancellationToken);
 
         if (profileToDelete == null)
         {

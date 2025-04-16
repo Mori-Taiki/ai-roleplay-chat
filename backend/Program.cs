@@ -39,6 +39,7 @@ builder.Services.AddSingleton(provider =>
     return new PredictionServiceClientBuilder { Endpoint = endpoint }.Build();
 });
 builder.Services.AddScoped<IImagenService, ImagenService>();
+builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(options =>
