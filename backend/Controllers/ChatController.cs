@@ -7,6 +7,7 @@ using AiRoleplayChat.Backend.Domain.Entities;
 using AiRoleplayChat.Backend.Data;
 using System.ComponentModel.DataAnnotations;
 using Microsoft.AspNetCore.Authorization;
+using System.Text.RegularExpressions;
 
 namespace AiRoleplayChat.Backend.Controllers;
 
@@ -16,6 +17,7 @@ namespace AiRoleplayChat.Backend.Controllers;
 public class ChatController : BaseApiController
 {
     private readonly IGeminiService _geminiService;
+    private readonly IImagenService _imagenService;
     private readonly AppDbContext _context;
     private readonly IChatMessageService _chatMessageService;
 
@@ -23,13 +25,15 @@ public class ChatController : BaseApiController
         AppDbContext context,
         IUserService userService,
         IGeminiService geminiService,
+        IImagenService imagenService,
         IChatMessageService chatMessageService,
         ILogger<ChatController> logger)
     : base(userService, logger)
     {
         _geminiService = geminiService;
-        _context = context; // ★ 残す
-        _chatMessageService = chatMessageService; // ★ 追加
+        _imagenService = imagenService;
+        _context = context;
+        _chatMessageService = chatMessageService;
     }
 
     [HttpGet("sessions/latest", Name = "GetLatestActiveSession")]
@@ -146,17 +150,17 @@ public class ChatController : BaseApiController
 
 
         // 3. 履歴を取得
-        var history = await _context.ChatMessages
+        List<ChatMessage> history = await _context.ChatMessages
                                 .Where(m => m.SessionId == session.Id)
                                 .OrderByDescending(m => m.Timestamp) // 新しい順に取得
                                 .Take(100)
                                 .ToListAsync(cancellationToken);
 
         // 4. GeminiService で応答を取得
-        string aiReplyText;
+        string aiReplyTextWithPotentialTag;
         try
         {
-            aiReplyText = await _geminiService.GenerateChatResponseAsync(
+            aiReplyTextWithPotentialTag = await _geminiService.GenerateChatResponseAsync(
                 request.Prompt,
                 character.SystemPrompt ?? "Default system prompt",
                 history,
@@ -170,6 +174,52 @@ public class ChatController : BaseApiController
             return StatusCode(StatusCodes.Status500InternalServerError, "AI応答の生成中にエラーが発生しました。");
         }
 
+        string finalAiReplyText = aiReplyTextWithPotentialTag; // 最終的な応答テキスト
+        string? generatedImageUrl = null;                     // 生成された画像URL
+        Match imageTagMatch = Regex.Match(aiReplyTextWithPotentialTag, @"\[generate_image:\s*(.*?)\]");
+
+        if (imageTagMatch.Success)
+        {
+            string imagePrompt = imageTagMatch.Groups[1].Value.Trim(); // タグから英語プロンプトを抽出
+            _logger.LogInformation("Image generation requested by AI for session {SessionId}. Prompt: '{ImagePrompt}'", session.Id, imagePrompt);
+
+            // 元の応答テキストからタグを削除 (または適切に整形)
+            finalAiReplyText = aiReplyTextWithPotentialTag.Replace(imageTagMatch.Value, "").Trim();
+            // 必要であれば「画像を生成したよ」的なメッセージを追加しても良い
+            // finalAiReplyText += "\n（画像を生成しました）";
+
+            if (!string.IsNullOrWhiteSpace(imagePrompt))
+            {
+                try
+                {
+                    var imageResponse = await _imagenService.GenerateImageAsync(imagePrompt, cancellationToken);
+
+                    if (imageResponse != null)
+                    {
+                        generatedImageUrl = $"data:{imageResponse.MimeType};base64,{imageResponse.Base64Data}";
+                        _logger.LogInformation("Image generated successfully for session {SessionId}", session.Id);
+                    }
+                    else
+                    {
+                        _logger.LogWarning("ImagenService returned null for session {SessionId}. Prompt: '{ImagePrompt}'", session.Id, imagePrompt);
+                        // 画像生成失敗時の代替テキストを応答に追加してもよい
+                        // finalAiReplyText += "\n（画像生成に失敗しました）";
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Error calling Imagen service for session {SessionId}", session.Id);
+                    // 画像生成失敗時の代替テキストを応答に追加してもよい
+                    // finalAiReplyText += "\n（画像生成中にエラーが発生しました）";
+                }
+            }
+            else
+            {
+                _logger.LogWarning("Image generation tag found but prompt was empty for session {SessionId}.", session.Id);
+                finalAiReplyText += "\n（画像生成の指示がありましたが、プロンプトが空でした）";
+            }
+        }
+
 
         // 5. AI の応答を保存
         var aiMessage = new ChatMessage
@@ -178,7 +228,8 @@ public class ChatController : BaseApiController
             CharacterProfileId = request.CharacterProfileId,
             UserId = appUserId.Value,
             Sender = "ai",
-            Text = aiReplyText,
+            Text = finalAiReplyText,
+            ImageUrl = generatedImageUrl,
             Timestamp = DateTime.UtcNow,
         };
         _context.ChatMessages.Add(aiMessage);
@@ -186,7 +237,7 @@ public class ChatController : BaseApiController
         _logger.LogInformation("AI message saved for session {SessionId}", session.Id);
 
         // 6. フロントエンドに応答を返す
-        var response = new ChatResponse(aiReplyText, session.Id);
+        var response = new ChatResponse(finalAiReplyText, session.Id, generatedImageUrl);
 
         return Ok(response);
     }

@@ -15,8 +15,9 @@ interface ChatState {
 type ChatAction =
   | { type: 'SET_HISTORY'; payload: Message[] }
   | { type: 'ADD_USER_MESSAGE'; payload: { text: string } }
-  | { type: 'ADD_AI_MESSAGE'; payload: { text: string } }
-  | { type: 'ADD_AI_IMAGE'; payload: { text: string; imageUrl: string } }
+  | { type: 'ADD_AI_RESPONSE'; payload: { text: string; imageUrl?: string } }
+  // | { type: 'ADD_AI_MESSAGE'; payload: { text: string } }
+  // | { type: 'ADD_AI_IMAGE'; payload: { text: string; imageUrl: string } }
   | { type: 'ADD_ERROR_MESSAGE'; payload: { text: string } };
 
 const initialState: ChatState = {
@@ -33,19 +34,32 @@ function chatReducer(state: ChatState, action: ChatAction): ChatState {
         ...state,
         messages: [...state.messages, { id: uuidv4(), sender: 'user', text: action.payload.text }],
       };
-    case 'ADD_AI_MESSAGE':
-      return {
-        ...state,
-        messages: [...state.messages, { id: uuidv4(), sender: 'ai', text: action.payload.text }],
-      };
-    case 'ADD_AI_IMAGE':
-      return {
-        ...state,
-        messages: [
-          ...state.messages,
-          { id: uuidv4(), sender: 'ai', text: action.payload.text, imageUrl: action.payload.imageUrl },
-        ],
-      };
+    case 'ADD_AI_RESPONSE':
+    return {
+      ...state,
+      messages: [
+        ...state.messages,
+        {
+          id: uuidv4(),
+          sender: 'ai',
+          text: action.payload.text, // ペイロードからテキストを取得
+          imageUrl: action.payload.imageUrl, // ペイロードから画像URLを取得 (undefined かもしれない)
+        },
+      ],
+    };
+    // case 'ADD_AI_MESSAGE':
+    //   return {
+    //     ...state,
+    //     messages: [...state.messages, { id: uuidv4(), sender: 'ai', text: action.payload.text }],
+    //   };
+    // case 'ADD_AI_IMAGE':
+    //   return {
+    //     ...state,
+    //     messages: [
+    //       ...state.messages,
+    //       { id: uuidv4(), sender: 'ai', text: action.payload.text, imageUrl: action.payload.imageUrl },
+    //     ],
+    //   };
     case 'ADD_ERROR_MESSAGE':
       // エラーメッセージも AI メッセージとして表示する例
       return {
@@ -72,7 +86,7 @@ function ChatPage() {
     isSendingMessage,
     isGeneratingImage,
     sendMessage,
-    generateImage,
+    // generateImage,
     error: apiError,
     isLoadingHistory,
     fetchHistory,
@@ -123,36 +137,43 @@ function ChatPage() {
     const trimmedInput = inputValue.trim();
     if (!trimmedInput || isLoading || !characterId) return;
 
-    // ユーザーメッセージ追加アクションを dispatch
     dispatch({ type: 'ADD_USER_MESSAGE', payload: { text: trimmedInput } });
     setInputValue('');
 
+    // sendMessage は ChatResponse ({ Reply, SessionId, ImageUrl? }) | null を返す
     const response = await sendMessage(characterId, trimmedInput, currentSessionId /*, history */);
 
     if (response) {
-      // AI メッセージ追加アクションを dispatch
-      dispatch({ type: 'ADD_AI_MESSAGE', payload: { text: response.reply } });
+      // ★ ADD_AI_RESPONSE アクションを dispatch するように変更
+      dispatch({
+        type: 'ADD_AI_RESPONSE',
+        payload: {
+          text: response.reply,       // AIのテキスト応答
+          imageUrl: response.imageUrl // 生成された画像のURL (nullかもしれない)
+        }
+      });
+      // セッションIDの更新はそのまま
       setCurrentSessionId(response.sessionId);
     }
     // エラー処理は useEffect で apiError を監視して行われる
-  }, [inputValue, isLoading, characterId, sendMessage, currentSessionId /*, history */]);
+  }, [inputValue, isLoading, characterId, currentSessionId, sendMessage, dispatch]);
 
-  const handleGenerateImageCallback = useCallback(async () => {
-    const promptForImage = inputValue.trim();
-    if (isLoading || !promptForImage || !characterId) return;
-    setInputValue('');
+  // const handleGenerateImageCallback = useCallback(async () => {
+  //   const promptForImage = inputValue.trim();
+  //   if (isLoading || !promptForImage || !characterId) return;
+  //   setInputValue('');
 
-    const response = await generateImage(characterId, promptForImage);
+  //   const response = await generateImage(characterId, promptForImage);
 
-    if (response) {
-      const dataUrl = `data:${response.mimeType};base64,${response.base64Data}`;
-      // 画像メッセージ追加アクションを dispatch
-      dispatch({
-        type: 'ADD_AI_IMAGE',
-        payload: { text: `「${promptForImage}」の画像を生成しました:`, imageUrl: dataUrl },
-      });
-    }
-  }, [inputValue, isLoading, characterId, generateImage]);
+  //   if (response) {
+  //     const dataUrl = `data:${response.mimeType};base64,${response.base64Data}`;
+  //     // 画像メッセージ追加アクションを dispatch
+  //     dispatch({
+  //       type: 'ADD_AI_IMAGE',
+  //       payload: { text: `「${promptForImage}」の画像を生成しました:`, imageUrl: dataUrl },
+  //     });
+  //   }
+  // }, [inputValue, isLoading, characterId, generateImage]);
 
   const handleKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
     // Enterキーでメッセージ送信 (画像生成はボタンクリックのみとする)
@@ -177,7 +198,7 @@ function ChatPage() {
         value={inputValue}
         onChange={handleInputChange}
         onSendMessage={handleSendMessageCallback}
-        onGenerateImage={handleGenerateImageCallback}
+        // onGenerateImage={handleGenerateImageCallback}
         onKeyDown={handleKeyDown}
         isLoading={isLoading}
         // isSendDisabled={isSendingMessage} // 個別制御する場合

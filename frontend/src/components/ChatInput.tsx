@@ -9,7 +9,7 @@ interface ChatInputProps {
   value: string;
   onChange: (event: React.ChangeEvent<HTMLInputElement>) => void;
   onSendMessage: () => void;
-  onGenerateImage: () => void;
+  // onGenerateImage: () => void;
   onKeyDown: (event: React.KeyboardEvent<HTMLInputElement>) => void;
   isLoading: boolean;
   isSendDisabled?: boolean; // 送信ボタンを個別制御したい場合 (任意)
@@ -20,11 +20,11 @@ const ChatInput: React.FC<ChatInputProps> = ({
   value,
   onChange,
   onSendMessage,
-  onGenerateImage,
+  // onGenerateImage,
   onKeyDown,
   isLoading,
   isSendDisabled = false,
-  isImageGenDisabled = false,
+  // isImageGenDisabled = false,
 }) => {
   return (
     // ★ CSS Modules を適用
@@ -47,15 +47,15 @@ const ChatInput: React.FC<ChatInputProps> = ({
       >
         送信
       </Button>
-      <Button
+      {/* <Button
         onClick={onGenerateImage}
         disabled={isLoading || isImageGenDisabled || !value.trim()}
-        isLoading={isLoading /* 画像生成専用ローディングを使う場合 isGenerating */}
+        isLoading={isLoading}
         variant="secondary" // または他の variant
         className={styles.imageButton} // ★ CSS Modules
-      >
+      > 
         画像生成
-      </Button>
+      </Button>*/}
     </div>
   );
 };

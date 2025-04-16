@@ -2,5 +2,6 @@ namespace AiRoleplayChat.Backend.Models;
 
 public record ChatResponse(
     string Reply,
-    string SessionId
+    string SessionId,
+    string? ImageUrl
 );

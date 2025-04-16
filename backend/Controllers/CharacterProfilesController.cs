@@ -2,10 +2,10 @@ using AiRoleplayChat.Backend.Data;
 using AiRoleplayChat.Backend.Domain.Entities;
 using AiRoleplayChat.Backend.Models;
 using AiRoleplayChat.Backend.Services;
+using AiRoleplayChat.Backend.Utils;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.AspNetCore.Authorization;
-using System.Security.Claims;
+using static AiRoleplayChat.Backend.Utils.PromptUtils;
 
 namespace AiRoleplayChat.Backend.Controllers; // プロジェクトの実際の名前空間に合わせてください
 
@@ -31,43 +31,45 @@ public class CharacterProfilesController : BaseApiController
         if (errorResult != null) return errorResult;
         if (appUserId == null) return BadRequest("User ID cannot be null.");
 
-        string systemPrompt;
+        string baseSystemPrompt;
+        bool isCustomized;
+
         if (!string.IsNullOrWhiteSpace(request.SystemPrompt))
         {
-            // リクエストに SystemPrompt が含まれていれば、それを使用する
-            systemPrompt = request.SystemPrompt;
+            baseSystemPrompt = request.SystemPrompt;
+            isCustomized = true;
             _logger.LogInformation("Using user-provided SystemPrompt for character: {CharacterName}", request.Name);
         }
         else
         {
+            // ★ 共通メソッドでデフォルトプロンプトを生成
+            baseSystemPrompt = SystemPromptHelper.GenerateDefaultPrompt(
+                request.Name, request.Personality, request.Tone, request.Backstory);
+            isCustomized = false;
             _logger.LogInformation("Generating SystemPrompt based on other fields for character: {CharacterName}", request.Name);
-            systemPrompt = $"あなたはキャラクター「{request.Name}」です。\n" +
-                               $"性格: {request.Personality ?? "未設定"}\n" +
-                               $"口調: {request.Tone ?? "未設定"}\n" +
-                               $"背景: {request.Backstory ?? "未設定"}\n" +
-                               "ユーザーと自然で魅力的な対話を行ってください。";
         }
 
-        // 受け取った DTO と生成した SystemPrompt から CharacterProfile エンティティを作成
+        // ★ ベースプロンプトに画像生成指示を追加
+        string finalSystemPrompt = SystemPromptHelper.AppendImageInstruction(baseSystemPrompt);
+
         var newProfile = new CharacterProfile
         {
             Name = request.Name,
             Personality = request.Personality,
             Tone = request.Tone,
             Backstory = request.Backstory,
-            SystemPrompt = systemPrompt,
+            SystemPrompt = finalSystemPrompt,
             ExampleDialogue = request.ExampleDialogue,
             AvatarImageUrl = request.AvatarImageUrl,
             IsActive = true,
-            IsSystemPromptCustomized = !string.IsNullOrWhiteSpace(request.SystemPrompt),
+            IsSystemPromptCustomized = isCustomized,
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow,
             UserId = appUserId
         };
 
-        // DbContext を通じてデータベースに追加
         _context.CharacterProfiles.Add(newProfile);
-        await _context.SaveChangesAsync();
+        await _context.SaveChangesAsync(cancellationToken);
 
         var responseDto = new CharacterProfileResponse(
             newProfile.Id,
@@ -155,32 +157,30 @@ public class CharacterProfilesController : BaseApiController
     {
         var (appUserId, errorResult) = await GetCurrentAppUserIdAsync(cancellationToken);
         if (errorResult != null) return errorResult;
+        if (appUserId == null) return BadRequest("User ID cannot be null.");
 
-        // まず、指定された ID のエンティティが存在するか確認
         var existingProfile = await _context.CharacterProfiles
-            .FirstOrDefaultAsync(p => p.Id == id && p.UserId == appUserId, cancellationToken);
+            .FirstOrDefaultAsync(p => p.Id == id && p.UserId == appUserId.Value, cancellationToken); // .Value
 
-        if (existingProfile == null)
-        {
-            return NotFound();
-        }
+        if (existingProfile == null) return NotFound();
 
-        string finalSystemPrompt; // 最終的に保存する SystemPrompt
+        string baseSystemPrompt; // 画像指示追加前のベースプロンプト
+
         if (request.IsSystemPromptCustomized && !string.IsNullOrWhiteSpace(request.SystemPrompt))
         {
-            finalSystemPrompt = request.SystemPrompt ?? "";
+            baseSystemPrompt = request.SystemPrompt ?? ""; // null チェック
             _logger.LogInformation("Updating Character {Id} with user-customized SystemPrompt.", id);
         }
         else
         {
-            // --- 自動生成 ---
+            // ★ 共通メソッドでデフォルトプロンプトを生成
+            baseSystemPrompt = SystemPromptHelper.GenerateDefaultPrompt(
+                request.Name, request.Personality, request.Tone, request.Backstory); // 更新リクエストの値を使う
             _logger.LogInformation("Auto-generating SystemPrompt for Character {Id} based on other fields.", id);
-            finalSystemPrompt = $"あなたはキャラクター「{request.Name}」です。\n" +
-                                $"性格: {request.Personality ?? "未設定"}\n" +
-                                $"口調: {request.Tone ?? "未設定"}\n" +
-                                $"背景: {request.Backstory ?? "未設定"}\n" +
-                                "ユーザーと自然で魅力的な対話を行ってください。";
         }
+
+        // ★ ベースプロンプトに画像生成指示を追加
+        string finalSystemPrompt = SystemPromptHelper.AppendImageInstruction(baseSystemPrompt);
 
         // 既存エンティティのプロパティをリクエスト DTO の値で更新
         existingProfile.Name = request.Name;
@@ -220,7 +220,9 @@ public class CharacterProfilesController : BaseApiController
     // Update メソッド内で使うヘルパーメソッド (存在確認用)
     private async Task<bool> CharacterProfileExists(int id)
     {
-        return await _context.CharacterProfiles.AnyAsync(e => e.Id == id);
+        var (appUserId, _) = await GetCurrentAppUserIdAsync();
+        if (appUserId == null) return false;
+        return await _context.CharacterProfiles.AnyAsync(e => e.Id == id && e.UserId == appUserId.Value);
     }
 
 

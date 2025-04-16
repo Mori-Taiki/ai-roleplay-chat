@@ -35,7 +35,7 @@ public class ChatMessage
     [Column(TypeName = "TEXT")]
     public string Text { get; set; } = string.Empty;
 
-    [Column(TypeName = "TEXT")]
+    [Column(TypeName = "MEDIUMTEXT")]
     public string? ImageUrl { get; set; }
 
     [Required]
