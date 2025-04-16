@@ -40,6 +40,7 @@ builder.Services.AddSingleton(provider =>
 });
 builder.Services.AddScoped<IImagenService, ImagenService>();
 builder.Services.AddScoped<IUserService, UserService>();
+builder.Services.AddScoped<IChatMessageService, ChatMessageService>();
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(options =>

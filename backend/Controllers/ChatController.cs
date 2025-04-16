@@ -17,12 +17,19 @@ public class ChatController : BaseApiController
 {
     private readonly IGeminiService _geminiService;
     private readonly AppDbContext _context;
+    private readonly IChatMessageService _chatMessageService;
 
-    public ChatController(AppDbContext context, IUserService userService, IGeminiService geminiService, ILogger<ChatController> logger)
-        : base(userService, logger)
+    public ChatController(
+        AppDbContext context,
+        IUserService userService,
+        IGeminiService geminiService,
+        IChatMessageService chatMessageService,
+        ILogger<ChatController> logger)
+    : base(userService, logger)
     {
         _geminiService = geminiService;
-        _context = context;
+        _context = context; // ★ 残す
+        _chatMessageService = chatMessageService; // ★ 追加
     }
 
     [HttpGet("sessions/latest", Name = "GetLatestActiveSession")]
@@ -91,10 +98,10 @@ public class ChatController : BaseApiController
 
 
     // POST /api/chat
-    [HttpPost(Name = "PostChatMessage")] // アクション名を変更推奨
+    [HttpPost(Name = "PostChatMessage")]
     [ProducesResponseType(typeof(ChatResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    [ProducesResponseType(StatusCodes.Status404NotFound)] // Character が見つからない場合
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<ActionResult<ChatResponse>> PostChatMessage([FromBody] ChatRequest request, CancellationToken cancellationToken)
     {
         _logger.LogInformation("Received chat request for Character {CharacterId}, Session {SessionId}", request.CharacterProfileId, request.SessionId ?? "New");
@@ -112,63 +119,37 @@ public class ChatController : BaseApiController
         }
 
         // 1. セッションを特定または新規作成
-        ChatSession? session;
-        if (!string.IsNullOrEmpty(request.SessionId))
-        {
-            // 提供された SessionId で検索
-            session = await _context.ChatSessions
-                                    .FirstOrDefaultAsync(s => s.Id == request.SessionId
-                                    && s.CharacterProfileId == request.CharacterProfileId
-                                    && s.UserId == appUserId, cancellationToken);
-
-            if (session == null)
-            {
-                _logger.LogWarning("Session ID {SessionId} provided but not found or invalid for character {CharacterId}. Creating a new session.", request.SessionId, request.CharacterProfileId);
-                // 見つからない or 不正な場合は新しいセッションを作成（フォールバック）
-                session = await CreateNewSession(request.CharacterProfileId, appUserId.Value, cancellationToken);
-            }
-            else if (session.EndTime != null)
-            {
-                _logger.LogWarning("Session ID {SessionId} provided but it has already ended. Creating a new session.", request.SessionId);
-                // 終了済みのセッションIDが指定された場合も新規作成
-                session = await CreateNewSession(request.CharacterProfileId, appUserId.Value, cancellationToken);
-            }
-            else
-            {
-                _logger.LogInformation("Continuing existing session: {SessionId}", session.Id);
-                // 既存セッションの最終更新日時を更新 (任意)
-                session.UpdatedAt = DateTime.UtcNow;
-                // _context.ChatSessions.Update(session); // SaveChangesAsync 前なので不要な場合も
-            }
-        }
-        else
-        {
-            // SessionId が提供されなかったので新規作成
-            _logger.LogInformation("No SessionId provided. Creating a new session for character {CharacterId}", request.CharacterProfileId);
-            session = await CreateNewSession(request.CharacterProfileId, appUserId.Value, cancellationToken);
-        }
+        ChatSession? session = await GetOrCreateSessionAsync(request.SessionId, request.CharacterProfileId, appUserId.Value, cancellationToken);
+        if (session == null) return StatusCode(500, "Failed to get or create session.");
 
         // 2. ユーザーの発言を保存
-        var userMessage = new ChatMessage
+        ChatMessage userMessage; // 保存後のエンティティを受け取る
+        try
         {
-            SessionId = session.Id,
-            CharacterProfileId = request.CharacterProfileId,
-            UserId = appUserId.Value,
-            Sender = "user",
-            Text = request.Prompt,
-            Timestamp = DateTime.UtcNow, // 発言時刻
-            // CreatedAt, UpdatedAt はデフォルト値を使用
-        };
-        _context.ChatMessages.Add(userMessage);
-        await _context.SaveChangesAsync(cancellationToken); // ユーザーメッセージを保存確定
-        _logger.LogInformation("User message saved for session {SessionId}", session.Id);
+            userMessage = await _chatMessageService.AddMessageAsync(
+                session.Id,
+                request.CharacterProfileId,
+                appUserId.Value,
+                "user",
+                request.Prompt,
+                null, // imageUrl は null とする
+                DateTime.UtcNow, // Timestamp
+                cancellationToken
+            );
+            _logger.LogInformation("User message saved via service. SessionId: {SessionId}, MessageId: {MessageId}", session.Id, userMessage.Id);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to save user message using ChatMessageService for SessionId: {SessionId}", session.Id);
+            return StatusCode(StatusCodes.Status500InternalServerError, "ユーザーメッセージの保存中にエラーが発生しました。");
+        }
 
 
         // 3. 履歴を取得
         var history = await _context.ChatMessages
                                 .Where(m => m.SessionId == session.Id)
-                                .OrderBy(m => m.Timestamp) // 古い順
-                                .Take(20) // 例: 直近20件 (トークン数考慮が必要)
+                                .OrderByDescending(m => m.Timestamp) // 新しい順に取得
+                                .Take(100)
                                 .ToListAsync(cancellationToken);
 
         // 4. GeminiService で応答を取得
@@ -208,6 +189,34 @@ public class ChatController : BaseApiController
         var response = new ChatResponse(aiReplyText, session.Id);
 
         return Ok(response);
+    }
+
+    private async Task<ChatSession?> GetOrCreateSessionAsync(string? requestedSessionId, int characterId, int userId, CancellationToken cancellationToken)
+    {
+        ChatSession? session;
+        if (!string.IsNullOrEmpty(requestedSessionId))
+        {
+            session = await _context.ChatSessions
+                .FirstOrDefaultAsync(s => s.Id == requestedSessionId && s.CharacterProfileId == characterId && s.UserId == userId, cancellationToken);
+
+            if (session == null || session.EndTime != null) // 見つからない or 終了済み
+            {
+                _logger.LogWarning("Session ID {SessionId} invalid or ended. Creating new.", requestedSessionId);
+                session = await CreateNewSession(characterId, userId, cancellationToken);
+            }
+            else
+            {
+                session.UpdatedAt = DateTime.UtcNow;
+                // Note: SaveChanges needed if only updating UpdatedAt here. Consider if this update is necessary on every message.
+            }
+        }
+        else
+        {
+            session = await CreateNewSession(characterId, userId, cancellationToken);
+        }
+        // SaveChanges for UpdatedAt if needed
+        // await _context.SaveChangesAsync(cancellationToken);
+        return session;
     }
 
     // セッションを新規作成するヘルパーメソッド
