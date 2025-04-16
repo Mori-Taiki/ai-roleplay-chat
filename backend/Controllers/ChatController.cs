@@ -12,18 +12,16 @@ namespace AiRoleplayChat.Backend.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-[Authorize] 
-public class ChatController : ControllerBase
+[Authorize]
+public class ChatController : BaseApiController
 {
     private readonly IGeminiService _geminiService;
-    private readonly ILogger<ChatController> _logger;
     private readonly AppDbContext _context;
-    private const int TEMP_USER_ID = 1; // 仮のユーザーID
 
-    public ChatController(IGeminiService geminiService, ILogger<ChatController> logger, AppDbContext context)
+    public ChatController(AppDbContext context, IUserService userService, IGeminiService geminiService, ILogger<ChatController> logger)
+        : base(userService, logger)
     {
         _geminiService = geminiService;
-        _logger = logger;
         _context = context;
     }
 
@@ -34,23 +32,22 @@ public class ChatController : ControllerBase
     [FromQuery][Required] int characterId,
     CancellationToken cancellationToken)
     {
-        // 仮のユーザーIDを使用
-        const int userId = TEMP_USER_ID;
-        _logger.LogInformation("Requesting latest active session for Character {CharacterId} and User {UserId}", characterId, userId);
+        var (appUserId, errorResult) = await GetCurrentAppUserIdAsync(cancellationToken);
+        if (errorResult != null) return errorResult;
 
         var latestSession = await _context.ChatSessions
-            .Where(s => s.CharacterProfileId == characterId && s.UserId == userId && s.EndTime == null) // アクティブなセッションを検索
+            .Where(s => s.CharacterProfileId == characterId && s.UserId == appUserId && s.EndTime == null) // アクティブなセッションを検索
             .OrderByDescending(s => s.StartTime) // 開始時刻が最新のもの
             .FirstOrDefaultAsync(cancellationToken);
 
         if (latestSession == null)
         {
-            _logger.LogInformation("No active session found for Character {CharacterId} and User {UserId}", characterId, userId);
+            _logger.LogInformation("No active session found for Character {CharacterId} and User {UserId}", characterId, appUserId);
             return NotFound("アクティブなチャットセッションが見つかりません。");
         }
 
         _logger.LogInformation("Found latest active session: {SessionId}", latestSession.Id);
-        return Ok(latestSession.Id); // セッションID (文字列) を返す
+        return Ok(latestSession.Id);
     }
 
     [HttpGet("history", Name = "GetChatHistory")]
@@ -62,23 +59,25 @@ public class ChatController : ControllerBase
         CancellationToken cancellationToken)
     {
         _logger.LogInformation("Received request to get chat history for Session {SessionId}", sessionId);
+        var (appUserId, errorResult) = await GetCurrentAppUserIdAsync(cancellationToken);
+        if (errorResult != null) return errorResult;
 
         // 0. セッションが存在するか確認
-        var sessionExists = await _context.ChatSessions.AnyAsync(s => s.Id == sessionId, cancellationToken);
+        var sessionExists = await _context.ChatSessions.AnyAsync(s => s.Id == sessionId && s.UserId == appUserId, cancellationToken);
         if (!sessionExists)
         {
             _logger.LogWarning("Session not found: {SessionId}", sessionId);
             return NotFound($"Session with ID {sessionId} not found.");
         }
 
-        // 1. 指定された sessionId に紐づくメッセージを Timestamp の昇順で取得
+        // 1. 指定された sessionId と UserId に紐づくメッセージを Timestamp の昇順で取得
         var messages = await _context.ChatMessages
-                                     .Where(m => m.SessionId == sessionId)
+                                     .Where(m => m.SessionId == sessionId && m.UserId == appUserId)
                                      .OrderBy(m => m.Timestamp) // 古い順に取得
                                                                 // .Take(100) // 必要なら取得件数に上限を設ける
                                      .Select(m => new ChatMessageResponseDto // ★ エンティティを直接返さず DTO にマッピング推奨
                                      {
-                                         Id = m.Id, // フロントの Message 型に合わせて string にしても良い
+                                         Id = m.Id,
                                          Sender = m.Sender,
                                          Text = m.Text,
                                          ImageUrl = m.ImageUrl,
@@ -100,6 +99,10 @@ public class ChatController : ControllerBase
     {
         _logger.LogInformation("Received chat request for Character {CharacterId}, Session {SessionId}", request.CharacterProfileId, request.SessionId ?? "New");
 
+        var (appUserId, errorResult) = await GetCurrentAppUserIdAsync(cancellationToken);
+        if (errorResult != null) return errorResult;
+        if (appUserId == null) return BadRequest("User ID cannot be null.");
+
         // 0. キャラクターが存在するか確認
         var character = await _context.CharacterProfiles.FindAsync(new object[] { request.CharacterProfileId }, cancellationToken);
         if (character == null)
@@ -116,19 +119,19 @@ public class ChatController : ControllerBase
             session = await _context.ChatSessions
                                     .FirstOrDefaultAsync(s => s.Id == request.SessionId
                                     && s.CharacterProfileId == request.CharacterProfileId
-                                    && s.UserId == TEMP_USER_ID, cancellationToken);
+                                    && s.UserId == appUserId, cancellationToken);
 
             if (session == null)
             {
                 _logger.LogWarning("Session ID {SessionId} provided but not found or invalid for character {CharacterId}. Creating a new session.", request.SessionId, request.CharacterProfileId);
                 // 見つからない or 不正な場合は新しいセッションを作成（フォールバック）
-                session = await CreateNewSession(request.CharacterProfileId, TEMP_USER_ID, cancellationToken);
+                session = await CreateNewSession(request.CharacterProfileId, appUserId.Value, cancellationToken);
             }
             else if (session.EndTime != null)
             {
                 _logger.LogWarning("Session ID {SessionId} provided but it has already ended. Creating a new session.", request.SessionId);
                 // 終了済みのセッションIDが指定された場合も新規作成
-                session = await CreateNewSession(request.CharacterProfileId, TEMP_USER_ID, cancellationToken);
+                session = await CreateNewSession(request.CharacterProfileId, appUserId.Value, cancellationToken);
             }
             else
             {
@@ -142,7 +145,7 @@ public class ChatController : ControllerBase
         {
             // SessionId が提供されなかったので新規作成
             _logger.LogInformation("No SessionId provided. Creating a new session for character {CharacterId}", request.CharacterProfileId);
-            session = await CreateNewSession(request.CharacterProfileId, TEMP_USER_ID, cancellationToken);
+            session = await CreateNewSession(request.CharacterProfileId, appUserId.Value, cancellationToken);
         }
 
         // 2. ユーザーの発言を保存
@@ -150,7 +153,7 @@ public class ChatController : ControllerBase
         {
             SessionId = session.Id,
             CharacterProfileId = request.CharacterProfileId,
-            UserId = TEMP_USER_ID,
+            UserId = appUserId.Value,
             Sender = "user",
             Text = request.Prompt,
             Timestamp = DateTime.UtcNow, // 発言時刻
@@ -161,23 +164,21 @@ public class ChatController : ControllerBase
         _logger.LogInformation("User message saved for session {SessionId}", session.Id);
 
 
-        // 3. (TODO - 次のステップ) 履歴を取得
+        // 3. 履歴を取得
         var history = await _context.ChatMessages
                                 .Where(m => m.SessionId == session.Id)
                                 .OrderBy(m => m.Timestamp) // 古い順
                                 .Take(20) // 例: 直近20件 (トークン数考慮が必要)
                                 .ToListAsync(cancellationToken);
-        // var formattedHistory = FormatHistoryForGemini(history);
 
-        // 4. GeminiService で応答を取得 (履歴はまだ渡さない)
+        // 4. GeminiService で応答を取得
         string aiReplyText;
         try
         {
-            // ★ GeminiService に履歴を渡すように修正する必要あり
             aiReplyText = await _geminiService.GenerateChatResponseAsync(
                 request.Prompt,
-                character.SystemPrompt ?? "Default system prompt", // キャラクターのシステムプロンプトを使用
-                history, // ★ 履歴を渡す
+                character.SystemPrompt ?? "Default system prompt",
+                history,
                 cancellationToken
              );
             _logger.LogInformation("Gemini response received for session {SessionId}", session.Id);
@@ -194,13 +195,13 @@ public class ChatController : ControllerBase
         {
             SessionId = session.Id,
             CharacterProfileId = request.CharacterProfileId,
-            UserId = TEMP_USER_ID, // AIの発言だが、セッションのユーザーに関連付ける
+            UserId = appUserId.Value,
             Sender = "ai",
             Text = aiReplyText,
             Timestamp = DateTime.UtcNow,
         };
         _context.ChatMessages.Add(aiMessage);
-        await _context.SaveChangesAsync(cancellationToken); // AIメッセージを保存確定
+        await _context.SaveChangesAsync(cancellationToken);
         _logger.LogInformation("AI message saved for session {SessionId}", session.Id);
 
         // 6. フロントエンドに応答を返す
