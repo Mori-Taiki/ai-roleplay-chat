@@ -130,3 +130,5 @@ TestResults/
 
 project_summary.txt
 gen-lang-client-0605269968-af99258408f7.json
+backend/publish/
+backend/gcp_wif_config.json

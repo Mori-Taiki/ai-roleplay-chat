@@ -16,8 +16,7 @@ builder.Services.AddCors(options =>
 {
     options.AddPolicy(name: MyAllowSpecificOrigins, policy =>
     {
-        // policy.WithOrigins(frontendUrl) // フロントエンドの開発サーバー
-        policy.AllowAnyOrigin() 
+        policy.WithOrigins(frontendUrl) // フロントエンドの開発サーバー
               .AllowAnyHeader()
               .AllowAnyMethod();
     });

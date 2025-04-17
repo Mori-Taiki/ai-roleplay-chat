@@ -1,104 +1,190 @@
-# プロジェクト引継ぎ情報サマリー (2025-04-09終了時点)
+# プロジェクト状況サマリー (2025-04-17)
 
-## 1. プロジェクト概要
+## 1. プロジェクト基本情報
 
-- **目標:** ユーザー定義キャラクターとロールプレイできるチャットアプリケーションを作成する。チャット内容に応じてキャラクターの様子を描写した画像を生成する機能も搭載する。
-- **形式:** Webアプリケーション
+- **目的:** AIキャラクターとのリアルなコミュニケーション（ドキドキ、ときめき）を体験できるWebアプリケーションの開発。ユーザー定義キャラクター、文脈理解、自然な画像生成を重視。
+- **形式:** Webアプリケーション (フロントエンド + バックエンド API)
+- **リポジトリ等:** (必要であれば追記)
 
-## 2. 技術スタック (暫定決定含む)
+## 2. 技術スタックと構成
 
-- **フロントエンド:** React (TypeScript) - Vite でプロジェクト作成済み
-- **バックエンド:** C# (ASP.NET Core Minimal API) - プロジェクト作成済み、基本エンドポイント実装済み
-- **文章生成API:** Google Gemini API (APIキー取得済み、バックエンドからの呼び出し実装済み)
-- **画像生成API:**
-    - Google Cloud Vertex AI (Imagen) - (実装中、GCP無料クレジット利用)
-    - (検討中/将来実装) Stable Diffusion on Azure Machine Learning - (Azure ML学習・コスト考慮)
-- **データベース:** MySQL (利用予定、実装はこれから)
-- **開発環境:** VSCode, Git, GitHub
+- **フロントエンド:** React (TypeScript, v18.x - B2C ライブラリ互換性のためダウングレード)、Vite, CSS (`index.css`, CSS Modules)。
+    - ルーティング: `react-router-dom` (v6) 導入済、レイアウトコンポーネント (`AppLayout`, `Outlet`) 使用。
+    - 状態管理: `useState`, `useReducer` (`ChatPage` でメッセージ管理に使用)。
+    - API通信: カスタムフック (`useAuth`, `useChatApi`, `useCharacterProfile`, `useCharacterList`) による分離完了。`Workspace` API 使用。
+    - UIコンポーネント: 共通コンポーネント `Button`, `FormField` 作成・適用済。`ChatPage` は `MessageList`, `MessageItem`, `ChatInput` に分割済。
+    - 認証: `@azure/msal-browser`, `@azure/msal-react` を使用。`MsalProvider` でラップ、`AuthStatus` コンポーネントでログイン/ログアウト UI 実装済。
+    - 環境変数: Vite の `.env` ファイル (`.env.development`, `.env.production`) と `import.meta.env.VITE_...` を使用。
+    - フォルダ構成: `src/pages`, `src/components`, `src/models`, `src/hooks`, `src/utils`, `src/authConfig.ts` を使用。
+- **バックエンド:** C# (ASP.NET Core, .NET 8 - 要確認) - Controller ベース。`BaseApiController` 導入。
+    - `Controllers/`: `ChatController`, `ImageController`, `CharacterProfilesController` (UserId 連携修正済)。
+    - `Services/`: `IGeminiService`, `GeminiService` (履歴対応済), `IImagenService`, `ImagenService`, `IUserService`, `UserService` (実装済), `IChatMessageService`, `ChatMessageService` (実装済、ChatController で利用)。
+    - `Domain/Entities/`: `CharacterProfile`, `ChatMessage`, `ChatSession`, `User` (すべて実装、DB テーブル作成済)。
+    * `Models/`: API DTO (`ChatRequest` (`SessionId?` 追加), `ChatResponse` (`SessionId`, `ImageUrl?` 追加), CRUD DTOs, `ChatMessageResponseDto`)。
+    - データアクセス: Entity Framework Core (EF Core)。`AppDbContext` に全エンティティ DbSet 追加済。リポジトリパターンは未導入（将来タスク）。
+    - 設定: `appsettings.json`, User Secrets (開発用機密情報), Azure App Service アプリケーション設定 (本番用)。
+    - 認証: `Microsoft.Identity.Web` 使用。Azure AD B2C と連携。API は `[Authorize]` で保護済。
+    - DI 活用。
+- **文章生成:** Google Gemini API (`gemini-1.5-flash-latest`) を `GeminiService` 経由で利用。履歴連携、画像生成指示付きシステムプロンプト対応済。
+- **画像生成:** Google Cloud Vertex AI (Imagen API, `imagegeneration@006`) を `ImagenService` 経由で利用。**認証は Azure Managed Identity + Workload Identity Federation (ADC) を使用** (設定完了、動作確認済)。
+- **データベース:** MySQL (Azure Database for MySQL フレキシブルサーバー利用)。
+    - ORM: EF Core 使用。`ChatMessages`, `ChatSessions`, `Users` テーブル追加済み。リレーションシップ (Cascade Delete 含む) 設定済。`ChatMessages.ImageUrl` は `MEDIUMTEXT` に変更済。
 - **クラウド:**
-    - Azure (学習中, Azure ML 検討, デプロイ先として検討)
-    - Google Cloud (Gemini API, Vertex AI Imagen 利用)
+    - Azure: DBaaS (MySQL) 利用中。**App Service (Linux)** と **Static Web Apps** リソース作成済。Azure AD B2C 利用中。
+    - Google Cloud: Gemini API, Vertex AI Imagen 利用中。Workload Identity 連携設定済。
+- **開発環境:** VSCode, Git, .NET SDK, Node.js/npm(or yarn)。
 
-## 3. PCスペック (ユーザー提供情報)
+## 3. 主要な決定事項・経緯
 
-- **CPU:** Intel Core i7-9700KF (8コア/8スレッド)
-- **マザーボード:** MSI Z390-A PRO
-- **GPU:** NVIDIA GeForce GT 730 (AIアクセラレーションには不向き)
-- **メモリ:** Team Elite Plus 16GB (2x8GB) DDR4-2666
-- **SSD 1:** Samsung 970 EVO Plus 250GB (NVMe M.2)
-- **SSD 2:** SanDisk Ultra 3D 500GB (SATA)
-- **電源ユニット:** 玄人志向 KRPW-AK650W/88+ (650W 80PLUS Silver)
-- **OS:** Windows 10 Home
+- **コアコンセプト:** 変更なし。
+- **リファクタリング:** フロントエンド・バックエンドともにカスタムフック/サービス導入、DI、認証連携など大幅に進捗。アーキテクチャのレイヤード化 (Repository パターン) は将来タスクに。
+- **画像生成トリガー:** ユーザーボタンから **AI (Gemini) による文脈判断** に方針変更。バックエンド実装完了。
+- **認証:** Azure AD B2C を採用、実装完了。バックエンドの GCP 認証は Managed Identity + WIF に変更・実装完了。
+- **設定管理:** User Secrets, `.env` ファイル, Azure App Settings/SWA App Settings を導入。
+- **デプロイ:** Azure (SWA + App Service + MySQL) に決定。リソース作成完了。環境設定完了。**アプリケーションのデプロイ自体も完了し、認証・基本機能が動作確認済。**
 
-## 4. 主な決定事項・調査結果メモ
+## 4. 現状のコード概要 (バックエンド)
 
-- **`curl`での日本語送信:** Git Bash on Windows では `-d '...'` で直接日本語を渡すと文字化けする可能性が高い。UTF-8で保存したファイルを `-d @filename` で指定するのが確実。
-- **C# / .NET:** アクセス修飾子、プロパティ、コンストラクタ、DI、Implicit Usings、User Secrets 等の基本仕様を学習・適用中。
-- **APIキー管理:** Gemini APIキー、GCPサービスアカウントキー等は User Secrets または環境変数で管理する。ソースコードへの直接記述は避ける。
-- **クラウド無料枠:**
-    - GCP: $300相当の無料クレジットを利用中 (Vertex AI Imagen等)。有効期限・予算アラートに注意。
-    - Azure: 無料アカウントのクレジット/無料枠を活用予定。
-- **デプロイ方針:** クラウド (Azure or GCP) を利用する。自宅PCでの公開は行わない。最終的にはAzureでの公開を目指す。
-- **ローカルLLM:** 不採用 (Gemini APIで代替、PCスペック懸念のため)。
-- **画像生成方針:**
-    1. まず Vertex AI Imagen API で実装を進める。
-    2. 開発に余裕が出れば、学習目的で Azure ML + Stable Diffusion (スポットVM利用検討) の実装に挑戦する。
-    3. Azure OpenAI (DALL-E 3) は現時点では採用しない。
-- **Azure ML利用時の注意:** コンピューティングリソース（特にエンドポイントのVM）は利用しない時は停止するなど、コスト管理を意識する。スポットVMは可用性リスクを理解の上で利用検討。
+- `Program.cs`: DI (Services, Repositories未, DbContext), 認証/認可ミドルウェア, CORS 設定 (環境変数読み込み), Swagger (認証対応済), 環境変数設定 (B2C, Vertex AI ADC 用 `GOOGLE_CLOUD_PROJECT` など)。
+- `Controllers/`: `BaseApiController` (ユーザーID取得共通化)。`CharacterProfilesController`, `ChatController` は `BaseApiController` を継承し、`UserId` を利用したデータアクセスに修正済。`ImageController` は `ChatMessageService` 利用未実装。
+- `Services/`: `UserService`, `ChatMessageService` 追加・実装済。`GeminiService` は履歴とシステムプロンプト指示に対応済。`ImagenService` は Managed Identity 認証で動作。
+- `Domain/Entities/`: `CharacterProfile`, `ChatMessage`, `ChatSession`, `User` 実装済。`CharacterProfile.SystemPromptHelper` 追加。
+- `Models/`: `ChatRequest`, `ChatResponse` 修正済。DTO 各種。
+- `Data/`: `AppDbContext` に全エンティティ追加、リレーションシップ設定済。
 
-## 5. 現在の進捗 (ToDoリスト)
+## 5. 現状のコード概要 (フロントエンド)
 
-### I. 環境準備・調査 (クラウド - GCP Vertex AI) - **実施中**
+- `main.tsx`: `MsalProvider` でラップ。
+- `App.tsx`: `AppLayout` コンポーネント導入、共通ナビゲーション、`AuthStatus` 配置、`Outlet` 使用。
+- `pages/ChatPage.tsx`: `useReducer` でメッセージ管理。カスタムフック `useChatApi` `useCharacterProfile` 利用。履歴表示、AI判断による画像表示対応済。**キャラクター名表示実装済**。セッション ID 管理・連携実装済。
+- `pages/CharacterListPage.tsx`: カスタムフック `useCharacterList` 利用。`Button` コンポーネント適用。「会話する」ボタン実装済。
+- `pages/CharacterSetupPage.tsx`: `react-hook-form`, `useFieldArray` 利用。カスタムフック `useCharacterProfile` 利用。`FormField`, `Button` コンポーネント適用。「会話する」ボタン実装済。
+- `components/`: `AuthStatus`, `Button`, `FormField`, `MessageList`, `MessageItem`, `ChatInput` 作成・利用。
+- `hooks/`: `useAuth`, `useChatApi`, `useCharacterProfile`, `useCharacterList` 作成・利用。API 呼び出し時にアクセストークン付与実装済。
+- `models/`: 型定義各種。`ChatResponse` に `ImageUrl?` 追加。
+- `utils/`: `errorHandler.ts` 作成・利用。
+- `authConfig.ts`: MSAL 設定。環境変数 (`import.meta.env.VITE_...`) から値を読み込むように修正済。
+- `.env.development`, `.env.production`: 作成・設定済。`.gitignore` 設定済。
 
-- [x] GCPプロジェクト確認・選択 (無料クレジット適用)
-- [x] Vertex AI API有効化
-- [x] 認証情報準備 (サービスアカウントキー作成、環境変数設定完了)
-- [ ] **Imagen APIドキュメント確認:**
-    - [ ] レスポンス形式の詳細（画像データの形式: Base64等）を確認する。
-    - [ ] 利用可能なパラメータ（画像サイズ、スタイル指定、ネガティブプロンプト等）を確認する。
-    - [ ] 料金体系（クレジット消費量/画像生成あたり）を再確認する。
-- [x] コスト管理設定: (予算アラート設定を推奨)
+## 6. プロジェクトフォルダ構成 (主要部分)
 
-### II. 環境準備・調査 (クラウド - Azure ML + Stable Diffusion) - **(将来検討)**
+将来的なリファクタリングは検討中
 
-- [ ] **Azure ML 基本概念学習:** ワークスペース、コンピューティング、モデル、エンドポイント、環境、推論スクリプト等の役割を理解する。
-- [ ] **モデル選定:** Azure ML モデルカタログや Hugging Face で利用可能な Stable Diffusion モデル（バージョン、ライセンス）を調査する。
-- [ ] **マネージドオンラインエンドポイント調査:**
-    - [ ] デプロイ手順（コードベース or ノーコード/ローコード）を確認する。
-    - [ ] 推論スクリプトの作成方法・サンプルを確認する (Python)。
-    - [ ] 必要なコンピューティングリソース（GPUの種類、vCPU, メモリ）のスペックを見積もる。
-- [ ] **スポットVM調査:**
-    - [ ] マネージドオンラインエンドポイントでのスポットVM利用方法と制限を確認する。
-    - [ ] 中断時の挙動とアプリケーションへの影響を理解する。
-    - [ ] スポット価格の変動と予算への影響を考慮する。
-- [ ] **コスト試算:** エンドポイントのVM稼働時間、ストレージ等を考慮したコストを見積もり、Imagen API（従量課金）と比較検討する。
+backend/
+├── Controllers/
+│   ├── BaseApiController.cs (New)
+│   ├── ChatController.cs
+│   ├── ImageController.cs
+│   └── CharacterProfilesController.cs
+├── Data/
+│   ├── Migrations/
+│   └── AppDbContext.cs
+├── Domain/
+│   └── Entities/
+│       ├── CharacterProfile.cs
+│       ├── ChatMessage.cs (New)
+│       ├── ChatSession.cs (New)
+│       └── User.cs (New)
+├── Models/
+│   ├── ChatMessageResponseDto.cs (New)
+│   ├── ChatRequest.cs (Updated)
+│   ├── ChatResponse.cs (Updated)
+│   ├── CreateCharacterProfileRequest.cs
+│   ├── UpdateCharacterProfileRequest.cs
+│   └── ...
+├── Services/
+│   ├── IChatMessageService.cs (New)
+│   ├── ChatMessageService.cs (New)
+│   ├── IGeminiService.cs
+│   ├── GeminiService.cs (Updated)
+│   ├── IImagenService.cs
+│   ├── ImagenService.cs
+│   ├── IUserService.cs (New)
+│   └── UserService.cs (New)
+├── appsettings.json
+├── Program.cs (Updated)
+└── backend.csproj
+frontend/
+├── public/
+├── src/
+│   ├── components/
+│   │   ├── AuthStatus.tsx (New)
+│   │   ├── Button.tsx (New)
+│   │   ├── ChatInput.tsx (New)
+│   │   ├── FormField.tsx (New)
+│   │   ├── MessageItem.tsx (New)
+│   │   └── MessageList.tsx (New)
+│   ├── hooks/ (New)
+│   │   ├── useAuth.ts
+│   │   ├── useChatApi.ts
+│   │   ├── useCharacterList.ts
+│   │   └── useCharacterProfile.ts
+│   ├── models/
+│   │   ├── CharacterProfileResponse.ts
+│   │   ├── ChatResponse.ts (New/Updated)
+│   │   ├── CreateCharacterProfileRequest.ts
+│   │   └── UpdateCharacterProfileRequest.ts
+│   ├── pages/
+│   │   ├── CharacterListPage.tsx (Updated)
+│   │   ├── CharacterSetupPage.tsx (Updated)
+│   │   └── ChatPage.tsx (Updated)
+│   ├── utils/ (New)
+│   │   └── errorHandler.ts
+│   ├── App.css / index.css
+│   ├── App.tsx (Updated)
+│   ├── authConfig.ts (New)
+│   ├── main.tsx (Updated)
+│   └── ...
+├── .env.development (New)
+├── .env.production (New)
+├── .gitignore (Updated)
+├── index.html
+├── package.json
+├── tsconfig.json
+└── vite.config.ts
 
-### III. 設計・開発
+## 7. ToDoリスト (状況とネクストアクション - 2025-04-17)
 
-- [x] **タスク①: 外部API(Gemini)疎通確認** (完了)
-- [x] **タスク②: 基本的なWebアプリケーションフロー構築** (完了)
-- [ ] **タスク③: 画像生成API連携 (Vertex AI Imagen)** ← **Next!**
-    - [x] C# バックエンドから Imagen API を呼び出す処理の実装 (**疎通確認完了**)
-    - [ ] **APIレスポンスから画像データを取得・処理する:** (例: Base64デコード)
-    - [ ] **フロントエンドから画像生成をトリガーし、結果の画像を表示する機能の実装:** (ローディング表示なども考慮)
-    - [ ] 利用可能なパラメータ（画像サイズ、ネガティブプロンプト等）をリクエストに追加する機能
-    - [ ] エラーハンドリング改善 (APIエラー、画像取得失敗など)
-- [ ] **タスク④: 要件・設計の再整理、追加機能実装**
-    - [ ] キャラクター設定機能の詳細設計・実装（設定項目、保存方法など）
-    - [ ] チャット履歴保存機能（DB: MySQL）の設計・実装 (テーブル設計、ORM/SQL、API)
-    - [ ] UI/UXの改善（キャラクター選択、チャット表示、設定画面など）
-    - [ ] セキュリティ考慮事項の洗い出し（APIキー保護、入力検証など）
-- [ ] **タスク⑤ (将来検討): 画像生成API連携 (Azure ML Stable Diffusion)**
-    - [ ] Azure ML 環境構築 (II. の調査に基づく)
-    - [ ] Stable Diffusion モデルのデプロイ
-    - [ ] C# バックエンドから Azure ML エンドポイントを呼び出す処理の実装
-    - [ ] (オプション) Imagen と Stable Diffusion を切り替えられる仕組みを検討
+### 完了済みタスク
+- 環境準備・調査 (GCP Vertex AI - 基本)
+- 外部API疎通確認 (Gemini)
+- 基本的なWebアプリフロー構築 (フロント-バックエンド-Gemini)
+- バックエンドリファクタリング (モデル分離, 設定外部化, Service層導入 (一部), Controller移行, BaseApiController)
+- 画像生成機能 (基本): Imagen連携, 日本語→英語翻訳(Gemini), フロント表示(ボタン)
+- DB連携設定: ORM(EF Core), Azure DB作成/設定, パッケージ導入, DbContext骨子作成/DI登録, 接続確認, マイグレーション初期設定
+- **DBスキーマ:** `CharacterProfiles`, `ChatMessages`, `ChatSessions`, `Users` テーブル作成、リレーション設定、`ImageUrl` 型変更
+- **タスク⑤: キャラクター設定 (基礎):** CRUD API 実装、フロント連携 (`CharacterSetupPage`)
+- **フロントエンド: リファクタリング** (ルーティング, カスタムフック, 共通コンポーネント, `ChatPage` 分割, `react-hook-form`, `useFieldArray`)
+- **タスク⑦: トーク画面 (`ChatPage.tsx`) 修正とリファクタリング:** ID連携、API通信分離、状態管理改善(`useReducer`, `uuid`)、コンポーネント分割、**キャラクター名表示**
+- **タスク⑧: ID 認証機能の実装 (Azure AD B2C):** Azure/GCP(WIF)/バックエンド/フロントエンド設定、**DB連携 (UserId利用)**
+- **デプロイ準備:** 環境選定(SWA+AppService+MySQL)、Azureリソース作成、環境変数管理(UserSecrets, .env, App Settings)、**Managed Identity認証 (Vertex AI)**
+- **デプロイ:** フロントエンド(SWA), バックエンド(App Service) の初回デプロイ、**動作確認 (ログイン、基本API呼び出し成功)**
+* **チャット履歴機能 (フェーズ1):** 基本的な保存・表示・文脈利用 (Gemini連携含む)
+* **チャットメッセージ保存処理の共通化 (一部):** Service 作成・DI登録、`ChatController` での利用完了。
+* **AIによる画像生成判定化 (バックエンド):** `GeminiService` プロンプト修正、`ChatController` での判定・Imagen呼び出し・メッセージ保存・レスポンス返却実装完了。
 
-### IV. デプロイ準備・検討 (開発と並行)
+### 現在のタスク / 次のステップ
 
-- [ ] **デプロイ先プラットフォーム選定 (Azure有力):**
-    - [ ] Azure App Service, Azure Static Web Apps, Azure Container Apps 等の機能・料金比較
-    - [ ] Azure Database for MySQL の調査
-- [ ] **CI/CDパイプライン検討:** (GitHub Actions 等)
-- [ ] **ドメイン取得・設定検討:**
-- [ ] **コスト試算 (公開時):** 選択した構成での月額費用見積もり
+* [ ] **【要調査/修正】App Service から Azure IMDS (169.254.169.254) への接続拒否 (Connection refused) エラー解消**
+    * **状況:** バックエンド (App Service) 起動時、Vertex AI クライアント生成中に ADC が Azure Managed Identity トークンを取得しようとして IMDS (`169.254.169.254:80`) にアクセスするが、「Connection refused」となり失敗。結果として `Your default credentials were not found` 例外が発生し、アプリケーションが起動できない（または Imagen 呼び出し時に失敗する）。
+    * **原因調査:** App Service のネットワーク設定 (VNet統合、NSG、ASEなど) が IMDS へのアクセスを妨げていないか確認。プラットフォームの一時的な問題の可能性も考慮。
+    * **ゴール:** App Service コンソールからの `curl` テストで IMDS に接続でき、バックエンド起動時の認証情報エラーが解消されること。
+* [ ] **チャットメッセージ保存処理の共通化 (仕上げ)** ← **Next Action?**
+    * [ ] `ImageController` (または画像生成箇所) で `ChatMessageService` を利用して画像メッセージを保存するように修正する。
+* [ ] **生成画像の再表示問題の解決:** 上記共通化により解決される見込み。表示CSSの最終調整。
+* [ ] **セッション管理 UI:** 画面から過去のチャットセッションを選択・削除する機能。
+* [ ] **履歴要約機能 (フェーズ 2):** 長い会話履歴の要約と利用。
+
+### 次のフェーズ以降のタスク (優先度順未定)
+- [ ] 機能改善: 画像生成 (エラー理由表示、複数対応、表示改善など)
+- [ ] 機能改善: ログ・エラー処理 (全体改善、構造化ロギング検討)
+- [ ] UI/UX改善 (全体デザイン、レスポンシブ、UIライブラリ検討)
+- [ ] セキュリティ考慮 (入力検証強化など)
+- [ ] デプロイ強化 (CI/CD パイプライン構築、カスタムドメイン、HTTPS)
+- [ ] コスト試算・監視
+* [ ] **アーキテクチャリファクタリング:** レイヤード化、Repository パターン導入 (Deferred)
+- [ ] 技術調査: Azure ML / Stable Diffusion
+- [ ] 新機能アイデア: キャラクタータイムライン機能
+
+## 8. PCスペック (参考)
+* CPU: i7-9700KF, RAM: 16GB, GPU: GT 730, OS: Win10 Home.
