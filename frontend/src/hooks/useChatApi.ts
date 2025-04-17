@@ -5,7 +5,7 @@ import { ImageResponse } from '../models/ImageResponse';
 import { Message } from '../models/Message';
 import { useAuth } from './useAuth';
 
-const API_BASE_URL = 'https://localhost:7000'; // 環境変数推奨
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://localhost:7000'; // 環境変数推奨
 
 interface UseChatApiReturn {
   isSendingMessage: boolean;

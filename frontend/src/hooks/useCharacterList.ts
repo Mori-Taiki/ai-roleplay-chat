@@ -4,7 +4,7 @@ import { CharacterProfileResponse } from '../models/CharacterProfileResponse';
 import { getApiErrorMessage, getGenericErrorMessage } from '../utils/errorHandler';
 import { useAuth } from './useAuth';
 
-const API_BASE_URL = 'https://localhost:7000';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://localhost:7000';
 
 interface UseCharacterListReturn {
   characters: CharacterProfileResponse[];
