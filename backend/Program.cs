@@ -10,12 +10,13 @@ var MyAllowSpecificOrigins = "_myAllowSpecificOrigins";
 
 var builder = WebApplication.CreateBuilder(args);
 
+var frontendUrl = builder.Configuration["FrontendUrl"] ?? "http://localhost:5173";
 // --- サービス登録 ---
 builder.Services.AddCors(options =>
 {
     options.AddPolicy(name: MyAllowSpecificOrigins, policy =>
     {
-        policy.WithOrigins("http://localhost:5173") // フロントエンドの開発サーバー
+        policy.WithOrigins(frontendUrl) // フロントエンドの開発サーバー
               .AllowAnyHeader()
               .AllowAnyMethod();
     });
