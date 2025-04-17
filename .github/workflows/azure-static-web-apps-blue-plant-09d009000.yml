@@ -32,6 +32,13 @@ jobs:
           api_location: "" # Api source code path - optional
           output_location: "dist" # Built app content directory - optional
           ###### End of Repository/Build Configurations ######
+        env:
+          VITE_API_URL: ${{ secrets.PRODUCTION_API_URL }}
+          VITE_B2C_CLIENT_ID: ${{ secrets.PRODUCTION_B2C_CLIENT_ID }}
+          VITE_B2C_AUTHORITY: ${{ secrets.PRODUCTION_B2C_AUTHORITY }}
+          VITE_B2C_KNOWN_AUTHORITIES: ${{ secrets.PRODUCTION_B2C_KNOWN_AUTHORITIES }}
+          VITE_B2C_REDIRECT_URI: ${{ secrets.PRODUCTION_B2C_REDIRECT_URI }} # Secret にするか、固定なら直接記述も可
+          VITE_B2C_API_SCOPE_URI: ${{ secrets.PRODUCTION_B2C_API_SCOPE_URI }}
 
   close_pull_request_job:
     if: github.event_name == 'pull_request' && github.event.action == 'closed'
