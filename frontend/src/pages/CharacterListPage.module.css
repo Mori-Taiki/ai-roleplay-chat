@@ -1,67 +1,91 @@
-/* src/pages/CharacterListPage.module.css (簡単なスタイル例) */
-.pageContainer {
-    padding: 1rem;
-  }
-  
-  .createButtonContainer {
-    margin-bottom: 1.5rem;
-  }
-  
-  .errorMessage {
-    color: #dc3545;
-    background-color: #f8d7da;
-    border: 1px solid #f5c6cb;
-    padding: 0.75rem 1.25rem;
-    border-radius: 0.25rem;
-    margin-bottom: 1rem;
-  }
-  
-  .characterList {
-    list-style: none;
-    padding: 0;
-    margin: 0;
-  }
-  
-  .characterItem {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 0.8rem 0;
-    border-bottom: 1px solid #eee;
-  }
-  
-  .characterItem:last-child {
-    border-bottom: none;
-  }
-  
-  .characterInfo {
-    display: flex;
-    align-items: center;
-  }
-  
-  .avatar {
-      width: 40px;
-      height: 40px;
-      border-radius: 50%;
-      margin-right: 0.8rem;
-      object-fit: cover; /* 画像がコンテナに合わせてトリミングされるように */
-  }
-  
-  
-  .characterInfo strong {
-    font-size: 1.1rem;
-    margin-right: 0.5rem;
-  }
-  
-  .characterId {
-    font-size: 0.85rem;
-    color: #6c757d;
-  }
-  
-  .characterActions {
-    display: flex;
-    align-items: center;
-  }
-  
-  /* 必要なら Button コンポーネントに size="sm" のスタイルを追加 */
-  /* .button.sm { padding: 0.25rem 0.5rem; font-size: 0.875rem; } */
+.characterItem {
+  display: flex;
+  align-items: flex-start; /* 上揃え */
+  justify-content: space-between;
+  padding: 0.75rem 0rem;
+  border-bottom: 1px solid #74b3a3;
+}
+
+.characterItem:last-child {
+  border-bottom: none;
+}
+
+.characterList {
+  padding: 0;
+}
+
+.characterInfo {
+  display: flex;
+  align-items: flex-start; /* 上揃え */
+  flex-grow: 1;
+  overflow: hidden; /* 全体としてはみ出しを隠す */
+}
+
+.avatar,
+.avatarPlaceholder {
+  height: 40px;
+  width: 40px; /* 幅を指定して正方形に */
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.nameAndMessage {
+  display: flex;
+  flex-direction: column; /* 縦に並べる */
+  margin-left: 0.75rem;
+  flex-grow: 1; /* 名前とメッセージ部分が広がる */
+}
+
+.characterName {
+  font-weight: bold;
+  white-space: nowrap;
+  margin-bottom: 0.25rem; /* 名前とメッセージの間に余白 */
+}
+
+.snippetTitle {
+  font-size: 0.9em;
+  color: #555;
+  max-width: 10%; 
+  margin-left: 0.5em; /* 名前との間に少しスペース */
+  white-space: nowrap; /* 中身が折り返さないように */
+  flex-shrink: 1; /* 必要に応じて縮むように */
+}
+
+.lastMessageWrapper {
+  overflow: hidden; /* はみ出しを隠す */
+  text-overflow: ellipsis; /* テキストが長い場合に省略記号を表示 */
+  white-space: nowrap; /* 折り返しを防ぐ */
+  max-width: 100%; /* 親要素内で最大幅を取る */
+  color: #555;
+  font-size: 0.9em;
+}
+
+.lastMessageWrapper::-webkit-scrollbar { height: 4px; }
+.lastMessageWrapper::-webkit-scrollbar-track { background: #eee; }
+.lastMessageWrapper::-webkit-scrollbar-thumb { background-color: #ccc; border-radius: 2px; }
+
+.lastMessageSnippet {
+  font-size: 0.9em;
+  color: #555;
+  display: inline-block;
+}
+
+.noMessagesYet {
+    font-size: 0.9em;
+    color: #888;
+    margin-left: 0.5em; 
+    white-space: nowrap;
+    font-style: italic;
+    flex-shrink: 0;
+}
+
+.characterActions {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  margin-left: 1rem;
+}
+
+.characterActions button {
+  margin-left: 0.5rem;
+}

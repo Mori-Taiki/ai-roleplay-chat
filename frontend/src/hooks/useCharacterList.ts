@@ -1,21 +1,21 @@
 // src/hooks/useCharacterList.ts (新規作成)
 import { useState, useEffect, useCallback } from 'react';
 import { useIsAuthenticated } from '@azure/msal-react';
-import { CharacterProfileResponse } from '../models/CharacterProfileResponse';
+import { CharacterProfileWithSessionInfoResponse } from '../models/CharacterProfileResponse';
 import { getApiErrorMessage, getGenericErrorMessage } from '../utils/errorHandler';
 import { useAuth } from './useAuth';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://localhost:7000';
 
 interface UseCharacterListReturn {
-  characters: CharacterProfileResponse[];
+  characters: CharacterProfileWithSessionInfoResponse[];
   isLoading: boolean;
   error: string | null;
   fetchCharacters: () => void; // 再取得用の関数も用意しておくと便利
 }
 
 export const useCharacterList = (): UseCharacterListReturn => {
-  const [characters, setCharacters] = useState<CharacterProfileResponse[]>([]);
+  const [characters, setCharacters] = useState<CharacterProfileWithSessionInfoResponse[]>([]);
   const isAuthenticated = useIsAuthenticated();
   const [isLoading, setIsLoading] = useState<boolean>(true); // 初期状態は true
   const [error, setError] = useState<string | null>(null);
@@ -37,14 +37,18 @@ export const useCharacterList = (): UseCharacterListReturn => {
     setIsLoading(true);
     setError(null);
     try {
+      // ★ GET /api/characterprofiles を呼び出す
       const response = await fetch(`${API_BASE_URL}/api/characterprofiles`, {
         headers: { Authorization: `Bearer ${accessToken}` },
       });
       if (!response.ok) {
+        // ... (APIエラーハンドリング)
         const message = await getApiErrorMessage(response);
-        throw new Error(message);
+        setError(message);
+        throw new Error(message || `API Error: ${response.status}`);
       }
-      const data: CharacterProfileResponse[] = await response.json();
+      // ★ 更新された型でレスポンスをパース
+      const data: CharacterProfileWithSessionInfoResponse[] = await response.json();
       setCharacters(data);
     } catch (err) {
       const message = getGenericErrorMessage(err, 'キャラクターリストの取得');

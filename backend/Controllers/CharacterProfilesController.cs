@@ -95,24 +95,45 @@ public class CharacterProfilesController : BaseApiController
         var (appUserId, errorResult) = await GetCurrentAppUserIdAsync(cancellationToken);
         if (errorResult != null) return errorResult;
 
-        var profiles = await _context.CharacterProfiles
+        var characters = await _context.CharacterProfiles
             .Where(p => p.UserId == appUserId)
             .OrderBy(p => p.Id)
-            .Select(p => new CharacterProfileResponse(
-                p.Id,
-                p.Name,
-                p.Personality,
-                p.Tone,
-                p.Backstory,
-                p.SystemPrompt,
-                p.ExampleDialogue,
-                p.AvatarImageUrl,
-                p.IsActive,
-                p.IsSystemPromptCustomized
-            ))
             .ToListAsync();
+        
+            var responseList = new List<CharacterProfileWithSessionInfoResponse>();
 
-        return Ok(profiles);
+            foreach (var character in characters)
+            {
+                // 各キャラクターについて、最新のセッションとメッセージを取得
+                var latestSessionInfo = await _context.ChatSessions
+                    .Where(s => s.CharacterProfileId == character.Id && s.UserId == appUserId) // ★ UserId プロパティ名要確認
+                    .OrderByDescending(s => s.StartTime) // ★ StartTime プロパティ名要確認
+                    .Select(s => new { // 必要な情報だけ取得
+                        SessionId = s.Id,
+                        LastMessage = s.Messages // セッション内のメッセージ
+                                         .OrderByDescending(m => m.Timestamp) // 最新のメッセージ
+                                         .Select(m => new { m.Text, m.Timestamp }) // メッセージ内容とタイムスタンプ
+                                         .FirstOrDefault() // 最新の1件を取得
+                    })
+                    .FirstOrDefaultAsync(); // 最新のセッションを1件取得
+
+                var response = new CharacterProfileWithSessionInfoResponse
+                {
+                    Id = character.Id,
+                    Name = character.Name,
+                    AvatarImageUrl = character.AvatarImageUrl,
+                    // 他の CharacterProfile プロパティ...
+
+                    SessionId = latestSessionInfo?.SessionId,
+                    // 最新メッセージの一部を取得 (例: 50文字に制限)
+                    LastMessageSnippet = latestSessionInfo?.LastMessage?.Text?.Length > 1000
+                        ? latestSessionInfo.LastMessage.Text.Substring(0, 1000) + "..."
+                        : latestSessionInfo?.LastMessage?.Text
+                };
+                responseList.Add(response);
+            }
+
+        return Ok(responseList);
     }
 
     // GET: api/characterprofiles/{id}
@@ -254,4 +275,6 @@ public class CharacterProfilesController : BaseApiController
         // 成功したら 204 No Content を返すのが一般的
         return NoContent();
     }
+
+    
 }

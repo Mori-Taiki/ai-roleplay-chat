@@ -1,86 +1,96 @@
-import React from 'react';
+// src/pages/CharacterListPage.tsx
+import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { useIsAuthenticated } from "@azure/msal-react"; // ★ インポート
+import { useIsAuthenticated } from "@azure/msal-react";
 import { useCharacterList } from '../hooks/useCharacterList';
+import { useSessionApi } from '../hooks/useSessionApi';
 import Button from '../components/Button';
 import styles from './CharacterListPage.module.css';
-// import { InteractionStatus } from "@azure/msal-browser"; // ログイン処理中の考慮が必要なら
-// import { useMsal } from "@azure/msal-react"; // ログイン処理中の考慮が必要なら
+import { CharacterProfileWithSessionInfoResponse } from '../models/CharacterProfileResponse';
 
 const CharacterListPage: React.FC = () => {
-  const isAuthenticated = useIsAuthenticated(); // ★ 認証状態を取得
-  // const { inProgress } = useMsal(); // ログイン/トークン取得処理中かどうかの状態
+  const isAuthenticated = useIsAuthenticated();
+  const { characters, isLoading, error, fetchCharacters } = useCharacterList();
+  const { deleteSession } = useSessionApi();
+  const [deletingSessionId, setDeletingSessionId] = useState<string | null>(null);
 
-  // ★ フックは常に呼び出す (Reactのルール)
-  const { characters, isLoading, error } = useCharacterList();
-
-  // // オプション：ログイン処理中の表示（より丁寧にする場合）
-  // if (inProgress === InteractionStatus.Startup || inProgress === InteractionStatus.HandleRedirect) {
-  //   return <p>認証状態を確認中...</p>;
-  // }
+  const handleDeleteSession = async (sessionId: string | undefined, characterName: string) => {
+    if (!sessionId) return;
+    if (window.confirm(`「${characterName}」との会話履歴を完全に削除しますか？この操作は元に戻せません。`)) {
+      setDeletingSessionId(sessionId);
+      try {
+        await deleteSession(sessionId);
+        alert(`「${characterName}」との会話履歴を削除しました。`);
+        fetchCharacters();
+      } catch (err: any) {
+        console.error("Session deletion failed:", err);
+        const errorMessage = err instanceof Error ? err.message : String(err);
+        alert(`エラーが発生しました: ${errorMessage}`);
+      } finally {
+        setDeletingSessionId(null);
+      }
+    }
+  };
 
   return (
     <div className={styles.pageContainer}>
       <h2>キャラクター一覧</h2>
+      {/* ... 新規作成ボタン ... */}
       <div className={styles.createButtonContainer}>
-        <Button
-          as={Link}
-          to="/characters/new"
-          variant="primary"
-        >
+        <Button as={Link} to="/characters/new" variant="primary">
           新規キャラクター作成
         </Button>
       </div>
 
-      {/* ★ 認証状態に応じて表示を切り替え */}
       {!isAuthenticated ? (
-        <p>
-          キャラクターを登録・表示するには、ログインしてください。
-        </p>
+        <p>キャラクターリストを表示するには、画面上部の「ログイン / 新規登録」ボタンよりログインしてください。</p>
       ) : (
-        // ★ 認証済みの場合の表示ロジック
         <>
-          {/* isLoading は useCharacterList フックが認証状態を考慮して更新してくれる */}
           {isLoading && <p>キャラクターリストを読み込み中...</p>}
-
-          {/* エラー表示 */}
           {error && <p className={styles.errorMessage}>エラー: {error}</p>}
-
-          {/* キャラクターリスト (ローディング中でなく、エラーがなく、認証済みの場合) */}
           {!isLoading && !error && (
             <ul className={styles.characterList}>
               {characters.length === 0 ? (
-                <p>登録されているキャラクターがいません。新規作成ボタンから作成してください。</p>
+                <p>登録されているキャラクターがいません。</p>
               ) : (
-                characters.map((char) => (
+                characters.map((char: CharacterProfileWithSessionInfoResponse) => (
                   <li key={char.id} className={styles.characterItem}>
                     <div className={styles.characterInfo}>
+                      {/* アバター */}
                       {char.avatarImageUrl ? (
-                          <img src={char.avatarImageUrl} alt={char.name} className={styles.avatar} />
+                        <img src={char.avatarImageUrl} alt={char.name} className={styles.avatar} />
                       ) : (
-                          <div className={styles.avatarPlaceholder}></div>
+                        <div className={styles.avatarPlaceholder}></div>
                       )}
-                      <strong>{char.name}</strong>
+                      <div className={styles.nameAndMessage}>
+                        <strong className={styles.characterName}>{char.name}</strong>
+                        {char.lastMessageSnippet ? (
+                          <div
+                            className={styles.lastMessageWrapper}
+                            title={char.lastMessageSnippet}
+                          >
+                            {char.lastMessageSnippet}
+                          </div>
+                        ) : (
+                          <span className={styles.noMessagesYet}>まだ会話がありません</span>
+                        )}
+                      </div>
                     </div>
+
+                    {/* アクションボタン */}
                     <div className={styles.characterActions}>
-                      <Button
-                        as={Link}
-                        to={`/chat/${char.id}`}
-                        variant="secondary"
-                        size="sm"
-                      >
-                        会話する
-                      </Button>
-                      <Button
-                        as={Link}
-                        to={`/characters/edit/${char.id}`}
-                        variant="secondary"
-                        size="sm"
-                        style={{ marginLeft: '0.5rem' }}
-                      >
-                        編集
-                      </Button>
-                      {/* TODO: 削除ボタン */}
+                       <Button as={Link} to={`/chat/${char.id}`} variant="secondary" size="sm">会話する</Button>
+                       <Button as={Link} to={`/characters/edit/${char.id}`} variant="secondary" size="sm" style={{ marginLeft: '0.5rem' }}>編集</Button>
+                       {/* 削除ボタン (disabled 条件は維持) */}
+                       <Button
+                          variant="danger"
+                          size="sm"
+                          style={{ marginLeft: '0.5rem' }}
+                          onClick={() => handleDeleteSession(char.sessionId, char.name)}
+                          disabled={!char.sessionId || deletingSessionId === char.sessionId}
+                        >
+                          {deletingSessionId === char.sessionId ? '履歴なし' : '履歴削除'}
+                        </Button>
                     </div>
                   </li>
                 ))
