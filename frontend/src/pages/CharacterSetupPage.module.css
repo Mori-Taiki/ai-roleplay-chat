@@ -35,6 +35,7 @@
   
   .textarea {
     min-height: 60px; /* textarea の最小高さ */
+    min-width: 100%; /* textarea の最小高さ */
     resize: vertical; /* 垂直方向のリサイズのみ許可 (任意) */
   }
   

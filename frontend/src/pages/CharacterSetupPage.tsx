@@ -364,7 +364,7 @@ const CharacterSetupPage: React.FC = () => {
         <FormField
           type="url"
           name="avatarImageUrl"
-          label="アバター画像URL (任意)"
+          label="アバター画像URL (任意) ※公開されている画像ファイルリンクを指定してください（ファイル添付機能はいつか実装予定）"
           register={register}
           errors={errors}
           placeholder="https://..."

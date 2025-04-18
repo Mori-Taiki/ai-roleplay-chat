@@ -60,7 +60,7 @@ const CharacterListPage: React.FC = () => {
                       {char.avatarImageUrl ? (
                         <img src={char.avatarImageUrl} alt={char.name} className={styles.avatar} />
                       ) : (
-                        <div className={styles.avatarPlaceholder}></div>
+                        <img src={"https://airoleplaychatblobstr.blob.core.windows.net/profile-images/placeholder.png"} alt={char.name} className={styles.avatar} />
                       )}
                       <div className={styles.nameAndMessage}>
                         <strong className={styles.characterName}>{char.name}</strong>

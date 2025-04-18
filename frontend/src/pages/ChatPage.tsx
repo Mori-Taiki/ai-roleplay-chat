@@ -204,24 +204,36 @@ function ChatPage() {
     setInputValue(event.target.value);
   };
 
-    if (characterFetchError) {
-      return (
-          <div className={styles.pageContainer}>
-              <div style={{ color: 'red', padding: '1rem' }}>
-                  キャラクター情報の読み込みに失敗しました: {characterFetchError}
-                  <br />
-                  <Link to="/characters">キャラクター一覧に戻る</Link>
-              </div>
-          </div>
-      );
+  if (characterFetchError) {
+    return (
+      <div className={styles.pageContainer}>
+        <div style={{ color: 'red', padding: '1rem' }}>
+          キャラクター情報の読み込みに失敗しました: {characterFetchError}
+          <br />
+          <Link to="/characters">キャラクター一覧に戻る</Link>
+        </div>
+      </div>
+    );
   }
 
   return (
     <div className={styles.pageContainer}>
       <h1>
         {isLoadingCharacter ? 'キャラクター情報読み込み中...' : `${character?.name ?? '不明なキャラクター'} `}
-        {/* もしアバターも表示するなら */}
-        {character?.avatarImageUrl && <img src={character.avatarImageUrl} alt={character.name} style={{height: '30px', width: '30px', borderRadius: '50%', marginLeft: '10px', verticalAlign: 'middle'}}/>}
+        <img
+          src={
+            character?.avatarImageUrl ||
+            'https://airoleplaychatblobstr.blob.core.windows.net/profile-images/placeholder.png'
+          }
+          alt={character?.name || 'プレースホルダー'}
+          style={{
+            height: '30px',
+            width: '30px',
+            borderRadius: '50%',
+            marginLeft: '10px',
+            verticalAlign: 'middle',
+          }}
+        />
       </h1>
       {(isLoadingLatestSession || isLoadingHistory) && <div>履歴を読み込み中...</div>}
       {/* MessageList コンポーネントを使用 */}
