@@ -50,7 +50,7 @@ public class CharacterProfilesController : BaseApiController
         }
 
         // ★ ベースプロンプトに画像生成指示を追加
-        string finalSystemPrompt = SystemPromptHelper.AppendImageInstruction(baseSystemPrompt);
+        // string finalSystemPrompt = SystemPromptHelper.AppendImageInstruction(baseSystemPrompt);
 
         var newProfile = new CharacterProfile
         {
@@ -58,7 +58,7 @@ public class CharacterProfilesController : BaseApiController
             Personality = request.Personality,
             Tone = request.Tone,
             Backstory = request.Backstory,
-            SystemPrompt = finalSystemPrompt,
+            SystemPrompt = baseSystemPrompt,
             ExampleDialogue = request.ExampleDialogue,
             AvatarImageUrl = request.AvatarImageUrl,
             IsActive = true,
@@ -180,14 +180,14 @@ public class CharacterProfilesController : BaseApiController
         }
 
         // ★ ベースプロンプトに画像生成指示を追加
-        string finalSystemPrompt = SystemPromptHelper.AppendImageInstruction(baseSystemPrompt);
+        // string finalSystemPrompt = SystemPromptHelper.AppendImageInstruction(baseSystemPrompt);
 
         // 既存エンティティのプロパティをリクエスト DTO の値で更新
         existingProfile.Name = request.Name;
         existingProfile.Personality = request.Personality;
         existingProfile.Tone = request.Tone;
         existingProfile.Backstory = request.Backstory;
-        existingProfile.SystemPrompt = finalSystemPrompt;
+        existingProfile.SystemPrompt = baseSystemPrompt;
         existingProfile.ExampleDialogue = request.ExampleDialogue;
         existingProfile.AvatarImageUrl = request.AvatarImageUrl;
         existingProfile.IsActive = request.IsActive;

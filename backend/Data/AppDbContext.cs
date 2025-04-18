@@ -1,4 +1,4 @@
-// src/Data/AppDbContext.cs (更新)
+// src/Data/AppDbContext.cs
 using AiRoleplayChat.Backend.Domain.Entities;
 using Microsoft.EntityFrameworkCore;
 

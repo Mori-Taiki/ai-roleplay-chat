@@ -157,7 +157,7 @@ const CharacterSetupPage: React.FC = () => {
         systemPrompt: formData.isSystemPromptCustomized ? formData.systemPrompt : null,
         isSystemPromptCustomized: formData.isSystemPromptCustomized,
         exampleDialogue: dialogueJsonString,
-        avatarImageUrl: formData.avatarImageUrl,
+        avatarImageUrl: formData.avatarImageUrl !== '' ? formData.avatarImageUrl : null,
         isActive: formData.isActive,
       };
       const success = await updateCharacter(characterId, requestData); // カスタムフック呼び出し
@@ -176,7 +176,7 @@ const CharacterSetupPage: React.FC = () => {
         systemPrompt: formData.isSystemPromptCustomized ? formData.systemPrompt : null, // カスタムする場合のみ送信
         // isSystemPromptCustomized は Create リクエストには不要 (バックエンドで判定)
         exampleDialogue: dialogueJsonString,
-        avatarImageUrl: formData.avatarImageUrl,
+        avatarImageUrl: formData.avatarImageUrl ?? null,
         isActive: formData.isActive, // デフォルト true だが念のため
       };
       const createdCharacter = await createCharacter(requestData); // カスタムフック呼び出し

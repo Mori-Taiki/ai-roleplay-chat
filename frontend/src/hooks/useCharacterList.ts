@@ -1,5 +1,6 @@
 // src/hooks/useCharacterList.ts (新規作成)
 import { useState, useEffect, useCallback } from 'react';
+import { useIsAuthenticated } from '@azure/msal-react';
 import { CharacterProfileResponse } from '../models/CharacterProfileResponse';
 import { getApiErrorMessage, getGenericErrorMessage } from '../utils/errorHandler';
 import { useAuth } from './useAuth';
@@ -15,11 +16,21 @@ interface UseCharacterListReturn {
 
 export const useCharacterList = (): UseCharacterListReturn => {
   const [characters, setCharacters] = useState<CharacterProfileResponse[]>([]);
+  const isAuthenticated = useIsAuthenticated();
   const [isLoading, setIsLoading] = useState<boolean>(true); // 初期状態は true
   const [error, setError] = useState<string | null>(null);
   const { acquireToken } = useAuth();
 
   const fetchCharacters = useCallback(async () => {
+    if (!isAuthenticated) {
+      setIsLoading(false);
+      setCharacters([]);
+      setError(null);
+      return;
+    }
+    setIsLoading(true);
+    setError(null);
+
     const accessToken = await acquireToken();
     if (!accessToken) return null;
 
@@ -45,10 +56,15 @@ export const useCharacterList = (): UseCharacterListReturn => {
     }
   }, [acquireToken]);
 
-  // コンポーネントマウント時に自動的に取得開始
   useEffect(() => {
-    fetchCharacters();
-  }, [fetchCharacters]); // fetchCharacters が変更された場合 (通常は初回のみ)
+    if (isAuthenticated) {
+      fetchCharacters();
+    } else {
+      setCharacters([]);
+      setError(null);
+      setIsLoading(false);
+    }
+  }, [isAuthenticated, fetchCharacters]);
 
   return { characters, isLoading, error, fetchCharacters };
 };

@@ -8,6 +8,7 @@ using AiRoleplayChat.Backend.Data;
 using System.ComponentModel.DataAnnotations;
 using Microsoft.AspNetCore.Authorization;
 using System.Text.RegularExpressions;
+using static AiRoleplayChat.Backend.Utils.PromptUtils;
 
 namespace AiRoleplayChat.Backend.Controllers;
 
@@ -162,7 +163,9 @@ public class ChatController : BaseApiController
         {
             aiReplyTextWithPotentialTag = await _geminiService.GenerateChatResponseAsync(
                 request.Prompt,
-                character.SystemPrompt ?? "Default system prompt",
+                SystemPromptHelper.AppendImageInstruction(character.SystemPrompt
+                // システムプロンプトが無い場合は、キャラクタープロフィールから生成
+                 ?? SystemPromptHelper.GenerateDefaultPrompt(character.Name, character.Personality, character.Tone, character.Backstory)),
                 history,
                 cancellationToken
              );
