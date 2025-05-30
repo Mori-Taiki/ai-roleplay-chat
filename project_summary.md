@@ -164,12 +164,8 @@ frontend/
 * **AIによる画像生成判定化 (バックエンド):** `GeminiService` プロンプト修正、`ChatController` での判定・Imagen呼び出し・メッセージ保存・レスポンス返却実装完了。
 
 ### 現在のタスク / 次のステップ
-
-* [ ] **【要調査/修正】App Service から Azure IMDS (169.254.169.254) への接続拒否 (Connection refused) エラー解消**
-    * **状況:** バックエンド (App Service) 起動時、Vertex AI クライアント生成中に ADC が Azure Managed Identity トークンを取得しようとして IMDS (`169.254.169.254:80`) にアクセスするが、「Connection refused」となり失敗。結果として `Your default credentials were not found` 例外が発生し、アプリケーションが起動できない（または Imagen 呼び出し時に失敗する）。
-    * **原因調査:** App Service のネットワーク設定 (VNet統合、NSG、ASEなど) が IMDS へのアクセスを妨げていないか確認。プラットフォームの一時的な問題の可能性も考慮。
-    * **ゴール:** App Service コンソールからの `curl` テストで IMDS に接続でき、バックエンド起動時の認証情報エラーが解消されること。
-* [ ] **チャットメッセージ保存処理の共通化 (仕上げ)** ← **Next Action?**
+* [ ] **安価なDBへの以降**← **Next Action?**
+* [ ] **チャットメッセージ保存処理の共通化 (仕上げ)** 
     * [ ] `ImageController` (または画像生成箇所) で `ChatMessageService` を利用して画像メッセージを保存するように修正する。
 * [ ] **生成画像の再表示問題の解決:** 上記共通化により解決される見込み。表示CSSの最終調整。
 * [ ] **セッション管理 UI:** 画面から過去のチャットセッションを選択・削除する機能。
