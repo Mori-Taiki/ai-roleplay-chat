@@ -93,6 +93,24 @@ builder.Services.AddDbContext<AppDbContext>(options =>
 
 var app = builder.Build();
 
+using (var scope = app.Services.CreateScope())
+{
+    var services = scope.ServiceProvider;
+    try
+    {
+        var context = services.GetRequiredService<AppDbContext>(); // AppDbContext を取得
+        context.Database.Migrate(); // マイグレーションを適用
+        // 必要であれば、ここで初期データのシーディングなども行えます
+    }
+    catch (Exception ex)
+    {
+        var logger = services.GetRequiredService<ILogger<Program>>();
+        logger.LogError(ex, "An error occurred while migrating or initializing the database.");
+        // 本番環境では、ここでアプリケーションを停止するなどの処理も検討できます
+        throw; // エラーを再スローして起動を失敗させるか、ログに記録して続行するかは要件によります
+    }
+}
+
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
