@@ -85,16 +85,10 @@ builder.Services.AddSwaggerGen(options =>
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddMicrosoftIdentityWebApi(builder.Configuration.GetSection("AzureAdB2C"));
 
-// User Secrets (または環境変数、appsettings.json) から接続文字列を取得
-var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
-    ?? throw new InvalidOperationException("Connection string 'DefaultConnection' not found in configuration.");
+var connectionString = builder.Configuration.GetConnectionString("SqliteConnection"); // 新しい接続文字列名
 
-// AppDbContext を DI コンテナに登録し、MySQL を使うように設定
-builder.Services.AddDbContextPool<AppDbContext>(options => // または AddDbContext
-    options.UseMySql(connectionString, ServerVersion.AutoDetect(connectionString))
-// オプション: 開発中に SQL ログや詳細エラーを見たい場合 (本番では注意)
-// .EnableSensitiveDataLogging()
-// .EnableDetailedErrors()
+builder.Services.AddDbContext<AppDbContext>(options =>
+    options.UseSqlite(connectionString)
 );
 
 var app = builder.Build();
