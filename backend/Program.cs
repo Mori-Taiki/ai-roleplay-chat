@@ -39,7 +39,8 @@ builder.Services.AddSingleton(provider =>
     Console.WriteLine($"[DI] Creating Singleton PredictionServiceClient for endpoint: {endpoint}");
     return new PredictionServiceClientBuilder { Endpoint = endpoint }.Build();
 });
-builder.Services.AddScoped<IImagenService, ImagenService>();
+// builder.Services.AddScoped<IImagenService, ImagenService>();
+builder.Services.AddScoped<IImagenService, ReplicateService>();
 builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddScoped<IChatMessageService, ChatMessageService>();
 builder.Services.AddScoped<IChatSessionService, ChatSessionService>();

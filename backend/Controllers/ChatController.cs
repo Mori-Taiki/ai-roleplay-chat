@@ -195,11 +195,10 @@ public class ChatController : BaseApiController
             {
                 try
                 {
-                    var imageResponse = await _imagenService.GenerateImageAsync(imagePrompt, cancellationToken);
+                    generatedImageUrl = await _imagenService.GenerateImageAsync(imagePrompt, cancellationToken);
 
-                    if (imageResponse != null)
+                    if (!string.IsNullOrEmpty(generatedImageUrl))
                     {
-                        generatedImageUrl = $"data:{imageResponse.MimeType};base64,{imageResponse.Base64Data}";
                         _logger.LogInformation("Image generated successfully for session {SessionId}", session.Id);
                     }
                     else

@@ -67,18 +67,19 @@ public class ImageController : ControllerBase
             {
                 _logger.LogInformation("Requesting image generation with prompt: \"{EnglishPrompt}\"...", englishPrompt);
                 // 注入された _imagenService を使用
-                imageResponse = await _imagenService.GenerateImageAsync(englishPrompt);
+                // imageResponse = await _imagenService.GenerateImageAsync(englishPrompt);
                 _logger.LogInformation("Image generation successful!");
             }
             catch (Exception ex)
             {
-                 _logger.LogError(ex, "Error occurred during image generation with prompt: {EnglishPrompt}", englishPrompt);
-                 // ControllerBase.Problem() を使用
+                _logger.LogError(ex, "Error occurred during image generation with prompt: {EnglishPrompt}", englishPrompt);
+                // ControllerBase.Problem() を使用
                 return Problem("画像生成中にエラーが発生しました。", statusCode: StatusCodes.Status500InternalServerError);
             }
 
             // --- 3. レスポンスを返す ---
-            return Ok(imageResponse);
+            // return Ok(imageResponse);
+            return NoContent();
         }
         catch (Exception ex) // その他の予期せぬエラー
         {
