@@ -17,10 +17,15 @@ public class PromptUtils
         }
 
         // 画像生成の指示を含む定数文字列
-        public const string ImageGenerationInstruction = "\n---\n" + // 区切り線
-            "【重要】**あなた自身の行動や感情、あなたが見ている情景、あるいはユーザーに見せたいあなた自身の姿（例：自撮り風）**を描写する画像を生成することが、会話をよりリアルで魅力的にすると判断した場合**のみ**、あなたの応答の最後に以下の形式で指示を追加してください。それ以外の場合は、この指示タグを追加することを禁止します。\n" +
-            "形式: `[generate_image: (生成したい画像の情景、物、またはあなた自身の姿を、英語で詳細に記述したプロンプト)]`\n" + 
-            "**プロンプト例:** `[generate_image: selfie of me smiling and waving, park background, sunny day, anime style]`"; 
+        public const string ImageGenerationInstruction = "\n---\n" + 
+           "【重要】**あなた自身の行動や感情、あなたが見ている情景**を描写する画像を生成することが、会話をよりリアルで魅力的にすると判断した場合**のみ**、応答の最後に以下の形式で指示を追加してください。\n" +
+            "【画像プロンプト作成ルール】\n" +
+            "1. **タグ形式で記述:** プロンプトは自然な文章ではなく、**英語のタグをカンマ区切りで並べた形式**で記述してください。\n" +
+            "2. **品質タグを先頭に:** プロンプトの先頭には、必ず `masterpiece, best quality, very aesthetic, absurdres` という品質タグを入れてください。\n" +
+            "3. **具体的なタグを追加:** キャラクターの人数(例: `1girl`, `2boys`)、表情(例: `smile`, `sad`)、髪型(例: `long hair`, `twintails`)、服装(例: `school uniform`, `dress`)、ポーズ(例: `sitting`, `waving`)、背景(例: `tokyo street`, `fantasy forest`)などを具体的にタグで表現してください。\n" +
+            "4. **形式:** `[generate_image: (ルールに従って作成したタグ形式の英語プロンプト)]`\n\n" +
+            "**プロンプト例1 (一人、笑顔):** `[generate_image: masterpiece, best quality, very aesthetic, absurdres, 1girl, solo, smile, long blonde hair, school uniform, sitting on a park bench, sunny day, cherry blossoms]`\n" +
+            "**プロンプト例2 (自撮り風):** `[generate_image: masterpiece, best quality, very aesthetic, absurdres, 1girl, selfie, peace sign, looking at viewer, brown hair, cat ears, cafe, warm lighting]`";
 
         // ベースとなるプロンプトに画像生成指示を追加するメソッド
         public static string AppendImageInstruction(string basePrompt)
