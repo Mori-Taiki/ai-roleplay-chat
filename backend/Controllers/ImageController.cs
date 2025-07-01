@@ -1,91 +1,132 @@
-using AiRoleplayChat.Backend.Models; // ImageGenRequest, ImageGenerationResponse
-using AiRoleplayChat.Backend.Services; // IGeminiService, IImagenService
-using Microsoft.AspNetCore.Mvc; // Controller関連
-using Microsoft.Extensions.Logging; // ILogger
+using AiRoleplayChat.Backend.Data;
+using AiRoleplayChat.Backend.Models;
+using AiRoleplayChat.Backend.Services;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 
 namespace AiRoleplayChat.Backend.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-[Authorize] 
-public class ImageController : ControllerBase
+[Authorize]
+public class ImageController : BaseApiController // ★ ControllerBaseからBaseApiControllerに変更
 {
+    // ★ 必要なサービスをDIで受け取るように変更
     private readonly IGeminiService _geminiService;
     private readonly IImagenService _imagenService;
-    private readonly ILogger<ImageController> _logger;
+    private readonly IBlobStorageService _blobStorageService;
+    private readonly AppDbContext _context;
 
-    // コンストラクタで必要なサービスとロガーを受け取る
+    // ★ コンストラクタを大幅に変更
     public ImageController(
+        IUserService userService, // BaseApiControllerに必要
         IGeminiService geminiService,
         IImagenService imagenService,
+        IBlobStorageService blobStorageService,
+        AppDbContext context,
         ILogger<ImageController> logger)
+        : base(userService, logger) // BaseApiControllerのコンストラクタを呼び出し
     {
         _geminiService = geminiService;
         _imagenService = imagenService;
-        _logger = logger;
+        _blobStorageService = blobStorageService;
+        _context = context;
     }
 
-    // POST /api/image
-    [HttpPost("generate")] // アクション名を付ける場合: POST /api/image/generate
-    // または [HttpPost] だけなら POST /api/image
-    // [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(ImageGenerationResponse))]
-    // [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    // [ProducesResponseType(StatusCodes.Status500InternalServerError)]
-    public async Task<IActionResult> GenerateImage([FromBody] ImageGenRequest request)
+    /// <summary>
+    /// 指定されたメッセージIDに基づいて画像を生成し、Blobにアップロード後、そのURLを返します。
+    /// </summary>
+    // ★ 既存の `GenerateImage` メソッドを置き換える新しいメソッド
+    [HttpPost("generate-and-upload")]
+    [ProducesResponseType(typeof(object), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+    public async Task<IActionResult> GenerateAndUploadImage([FromBody] ImageGenRequest request, CancellationToken cancellationToken)
     {
-        _logger.LogInformation("POST /api/image/generate called with prompt: {JapanesePrompt}", request.Prompt);
+        var (appUserId, errorResult) = await GetCurrentAppUserIdAsync(cancellationToken);
+        if (errorResult != null) return errorResult;
 
+        _logger.LogInformation("Image generation request received for MessageId: {MessageId} from UserId: {UserId}", request.MessageId, appUserId);
+
+        if (request.MessageId <= 0)
+        {
+            return BadRequest(new { Message = "有効なメッセージIDは必須です。" });
+        }
+
+        // 1. 対象のメッセージと、それが属するセッションIDをDBから取得 (追跡なし)
+        var targetMessage = await _context.ChatMessages.AsNoTracking()
+            .FirstOrDefaultAsync(m => m.Id == request.MessageId && m.UserId == appUserId, cancellationToken);
+
+        if (targetMessage == null)
+        {
+            _logger.LogWarning("User {UserId} attempted to generate an image for a non-existent or unauthorized message {MessageId}", appUserId, request.MessageId);
+            return Forbid("指定されたメッセージを操作する権限がありません。");
+        }
+
+        // 2. DBから会話履歴を取得
+        var history = await _context.ChatMessages.AsNoTracking()
+                            .Where(m => m.SessionId == targetMessage.SessionId && m.Timestamp <= targetMessage.Timestamp)
+                            .OrderBy(m => m.Timestamp)
+                            .ToListAsync(cancellationToken);
+
+        if (!history.Any())
+        {
+            return Problem("画像生成の元となる会話履歴が見つかりませんでした。");
+        }
+
+        // 3. Geminiにプロンプト生成を依頼
+        string englishPrompt;
         try
         {
-            string japanesePrompt = request.Prompt;
-            if (string.IsNullOrWhiteSpace(japanesePrompt))
-            {
-                _logger.LogWarning("Received empty prompt for image generation.");
-                return BadRequest(new { Message = "プロンプトが空です。" });
-            }
-
-            // --- 1. 翻訳 (GeminiService を使う) ---
-            string englishPrompt;
-            try
-            {
-                _logger.LogInformation("Translating Japanese prompt: \"{JapanesePrompt}\"...", japanesePrompt);
-                // 注入された _geminiService を使用
-                englishPrompt = await _geminiService.TranslateToEnglishAsync(japanesePrompt);
-                _logger.LogInformation("Translation successful: \"{EnglishPrompt}\"", englishPrompt);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error occurred during translation for image generation. Japanese prompt: {JapanesePrompt}", japanesePrompt);
-                return Problem("プロンプトの翻訳中にエラーが発生しました。", statusCode: StatusCodes.Status500InternalServerError);
-            }
-
-
-            // --- 2. 画像生成 (ImagenService を使う) ---
-            ImageGenerationResponse imageResponse;
-            try
-            {
-                _logger.LogInformation("Requesting image generation with prompt: \"{EnglishPrompt}\"...", englishPrompt);
-                // 注入された _imagenService を使用
-                // imageResponse = await _imagenService.GenerateImageAsync(englishPrompt);
-                _logger.LogInformation("Image generation successful!");
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error occurred during image generation with prompt: {EnglishPrompt}", englishPrompt);
-                // ControllerBase.Problem() を使用
-                return Problem("画像生成中にエラーが発生しました。", statusCode: StatusCodes.Status500InternalServerError);
-            }
-
-            // --- 3. レスポンスを返す ---
-            // return Ok(imageResponse);
-            return NoContent();
+            englishPrompt = await _geminiService.GenerateImagePromptAsync(history, cancellationToken);
+            _logger.LogInformation("Generated image prompt for MessageId {MessageId}: '{Prompt}'", request.MessageId, englishPrompt);
         }
-        catch (Exception ex) // その他の予期せぬエラー
+        catch (Exception ex)
         {
-            // このcatchは通常、上のtry-catchで捕捉されるはずだが、念のため
-            _logger.LogError(ex, "Unexpected error in GenerateImage action for prompt: {JapanesePrompt}", request.Prompt);
-            return Problem("画像生成リクエストの処理中に予期せぬエラーが発生しました。", statusCode: StatusCodes.Status500InternalServerError);
+            _logger.LogError(ex, "Failed to generate image prompt for MessageId {MessageId}", request.MessageId);
+            return Problem("AIによる画像プロンプトの生成に失敗しました。");
         }
+
+        // 4. 画像生成サービスを呼び出し
+        var generationResult = await _imagenService.GenerateImageAsync(englishPrompt, cancellationToken);
+        if (generationResult is not { ImageBytes: not null, MimeType: not null })
+        {
+            return Problem("画像データの生成に失敗しました。");
+        }
+        var (imageBytes, mimeType) = generationResult.Value;
+
+        // 5. Blob Storageへアップロード
+        string blobName = $"{Guid.NewGuid()}.png"; // 一意のファイル名
+        string imageUrl;
+        try
+        {
+            using var imageStream = new MemoryStream(imageBytes);
+            imageUrl = await _blobStorageService.UploadAsync(imageStream, blobName, mimeType, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to upload image to Blob Storage for MessageId {MessageId}", request.MessageId);
+            return Problem("画像のアップロード処理中にエラーが発生しました。");
+        }
+
+        // 6. データベースのメッセージレコードを更新 (追跡している新しいインスタンスで)
+        var messageToUpdate = await _context.ChatMessages.FindAsync(new object[] { request.MessageId }, cancellationToken);
+        if (messageToUpdate != null)
+        {
+            messageToUpdate.ImageUrl = imageUrl;
+            messageToUpdate.UpdatedAt = DateTime.UtcNow;
+            await _context.SaveChangesAsync(cancellationToken);
+            _logger.LogInformation("Successfully updated MessageId {MessageId} with ImageUrl: {ImageUrl}", request.MessageId, imageUrl);
+        }
+        else
+        {
+            _logger.LogWarning("Could not find message {MessageId} to update ImageUrl, but image was uploaded to {ImageUrl}", request.MessageId, imageUrl);
+        }
+
+        // 7. フロントエンドに画像のURLを返す
+        return Ok(new { ImageUrl = imageUrl });
     }
 }

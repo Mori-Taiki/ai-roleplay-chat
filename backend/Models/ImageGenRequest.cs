@@ -1,3 +1,3 @@
 namespace AiRoleplayChat.Backend.Models;
 
-public record ImageGenRequest(string Prompt);
+public record ImageGenRequest(int MessageId);

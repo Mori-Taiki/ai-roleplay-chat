@@ -164,40 +164,18 @@ public class ChatController : BaseApiController
         }
 
         string finalAiReplyText = aiReplyTextWithPotentialTag;
-        string? generatedImageUrl = null;
-        Match imageTagMatch = Regex.Match(aiReplyTextWithPotentialTag, @"\[generate_image:\s*(.*?)\]");
+        bool requiresImageGeneration = false;
 
+        // 応答に画像生成タグがあるかチェック
+        Match imageTagMatch = Regex.Match(aiReplyTextWithPotentialTag, @"\[generate_image:.*?\]");
         if (imageTagMatch.Success)
         {
-            string imagePrompt = imageTagMatch.Groups[1].Value.Trim();
-            _logger.LogInformation("Image generation requested by AI for session {SessionId}. Prompt: '{ImagePrompt}'", session.Id, imagePrompt);
+            requiresImageGeneration = true;
+            // 応答テキストからは画像生成タグを削除
             finalAiReplyText = aiReplyTextWithPotentialTag.Replace(imageTagMatch.Value, "").Trim();
-
-            if (!string.IsNullOrWhiteSpace(imagePrompt))
-            {
-                try
-                {
-                    generatedImageUrl = await _imagenService.GenerateImageAsync(imagePrompt, cancellationToken);
-                    if (!string.IsNullOrEmpty(generatedImageUrl))
-                    {
-                        _logger.LogInformation("Image generated successfully for session {SessionId}", session.Id);
-                    }
-                    else
-                    {
-                         _logger.LogWarning("ImagenService returned null for session {SessionId}. Prompt: '{ImagePrompt}'", session.Id, imagePrompt);
-                    }
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogError(ex, "Error calling Imagen service for session {SessionId}", session.Id);
-                }
-            }
-            else
-            {
-                 _logger.LogWarning("Image generation tag found but prompt was empty for session {SessionId}.", session.Id);
-                 finalAiReplyText += "\n（画像生成の指示がありましたが、プロンプトが空でした）";
-            }
+            _logger.LogInformation("Image generation tag detected for session {SessionId}.", session.Id);
         }
+
 
         // 5. AI の応答メッセージを作成
         var aiMessage = new ChatMessage
@@ -207,18 +185,21 @@ public class ChatController : BaseApiController
             UserId = appUserId.Value,
             Sender = "ai",
             Text = finalAiReplyText,
-            ImageUrl = generatedImageUrl,
+            ImageUrl = null,
             Timestamp = DateTime.UtcNow,
         };
-        
-        // 6. 応答成功後、ユーザーの発言とAIの発言を両方DBに保存
-        // (ChatMessageServiceを使わず、直接ContextにAddRangeする)
-        _context.ChatMessages.AddRange(userMessage, aiMessage);
-        await _context.SaveChangesAsync(cancellationToken);
-        _logger.LogInformation("User and AI messages saved for session {SessionId}", session.Id);
 
-        // 7. フロントエンドに応答を返す
-        var response = new ChatResponse(finalAiReplyText, session.Id, generatedImageUrl);
+        // AIの発言をDBに保存
+        _context.ChatMessages.Add(aiMessage);
+        await _context.SaveChangesAsync(cancellationToken);
+
+        // フロントエンドに応答を返す
+        var response = new ChatResponse(
+            finalAiReplyText,
+            session.Id,
+            aiMessage.Id,
+            requiresImageGeneration
+        );
 
         return Ok(response);
     }

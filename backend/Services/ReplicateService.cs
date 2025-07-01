@@ -13,7 +13,7 @@ namespace AiRoleplayChat.Backend.Services;
 public class ReplicateService : IImagenService
 {
     // --- APIリクエスト/レスポンス用の内部レコード定義 ---
-    
+
     // APIに送信するリクエストのinput部分
     private record ReplicateInput(
         [property: JsonPropertyName("prompt")] string Prompt,
@@ -49,28 +49,22 @@ public class ReplicateService : IImagenService
     {
         _httpClientFactory = httpClientFactory ?? throw new ArgumentNullException(nameof(httpClientFactory));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-        
+
         _apiKey = configuration["REPLICATE_API_TOKEN"] ?? throw new InvalidOperationException("Configuration missing: REPLICATE_API_TOKEN");
         _modelVersion = "6afe2e6b27dad2d6f480b59195c221884b6acc589ff4d05ff0e5fc058690fbb9";
-        
+
         // 推奨ネガティブプロンプトを設定
         _negativePrompt = "lowres, (bad), text, error, fewer, extra, missing, worst quality, jpeg artifacts, low quality, watermark, unfinished, displeasing, oldest, early, chromatic aberration, signature, extra digits, artistic error, username, scan, [abstract]";
     }
 
     /// <summary>
-    /// 指定された英語プロンプトに基づいて画像を生成し、その画像のURLを返します。
+    /// Replicateで画像を生成し、そのバイナリデータとMIMEタイプを返します。
     /// </summary>
-    public async Task<string?> GenerateImageAsync(string prompt, CancellationToken cancellationToken = default)
+    public async Task<(byte[]? ImageBytes, string? MimeType)?> GenerateImageAsync(string prompt, CancellationToken cancellationToken = default)
     {
-        if (string.IsNullOrWhiteSpace(prompt))
-        {
-            throw new ArgumentException("Prompt cannot be empty.", nameof(prompt));
-        }
-
         var httpClient = _httpClientFactory.CreateClient();
         httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", _apiKey);
 
-        // --- 1. 初期リクエスト (POST) を送信して、ポーリング用URLを取得 ---
         string? pollingUrl = await StartPredictionAsync(httpClient, prompt, cancellationToken);
         if (string.IsNullOrEmpty(pollingUrl))
         {
@@ -78,10 +72,36 @@ public class ReplicateService : IImagenService
             return null;
         }
 
-        // --- 2. ポーリングして結果を取得 ---
-        return await PollForPredictionResultAsync(httpClient, pollingUrl, cancellationToken);
+        string? imageUrl = await PollForPredictionResultAsync(httpClient, pollingUrl, cancellationToken);
+        if (string.IsNullOrEmpty(imageUrl))
+        {
+            _logger.LogError("Failed to get final image URL from polling.");
+            return null;
+        }
+
+        try
+        {
+            _logger.LogInformation("Downloading image from URL: {ImageUrl}", imageUrl);
+            var imageResponse = await httpClient.GetAsync(imageUrl, cancellationToken);
+            if (!imageResponse.IsSuccessStatusCode)
+            {
+                _logger.LogError("Failed to download image from {ImageUrl}. Status: {StatusCode}", imageUrl, imageResponse.StatusCode);
+                return null;
+            }
+
+            var imageBytes = await imageResponse.Content.ReadAsByteArrayAsync(cancellationToken);
+            var mimeType = imageResponse.Content.Headers.ContentType?.ToString() ?? "image/png"; // 不明な場合はpngに
+
+            _logger.LogInformation("Image downloaded successfully. Size: {Size} bytes, MimeType: {MimeType}", imageBytes.Length, mimeType);
+            return (imageBytes, mimeType);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Exception occurred while downloading the generated image from {ImageUrl}", imageUrl);
+            return null;
+        }
     }
-    
+
     // 予測を開始し、ポーリング用のURLを取得するメソッド
     private async Task<string?> StartPredictionAsync(HttpClient httpClient, string prompt, CancellationToken cancellationToken)
     {
@@ -108,7 +128,7 @@ public class ReplicateService : IImagenService
 
             var responseStream = await response.Content.ReadAsStreamAsync(cancellationToken);
             var result = await JsonSerializer.DeserializeAsync<InitialResponse>(responseStream, _jsonSerializerOptions, cancellationToken);
-            
+
             _logger.LogInformation("Prediction started. Polling URL: {PollingUrl}", result?.Urls?.Get);
             return result?.Urls?.Get;
         }
@@ -124,7 +144,7 @@ public class ReplicateService : IImagenService
     {
         var pollingTimeout = TimeSpan.FromMinutes(3); // タイムアウトを3分に設定
         var pollingInterval = TimeSpan.FromSeconds(3); // ポーリング間隔を3秒に設定
-        
+
         using var timeoutCts = new CancellationTokenSource(pollingTimeout);
         using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeoutCts.Token);
 
@@ -186,7 +206,7 @@ public class ReplicateService : IImagenService
                 return null; // 不明なエラーでループを抜ける
             }
         }
-        
+
         return null; // ループが正常に終了することは通常ないが念のため
     }
 }

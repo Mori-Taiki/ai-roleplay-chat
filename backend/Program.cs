@@ -29,6 +29,7 @@ builder.Services.Configure<Microsoft.AspNetCore.Http.Json.JsonOptions>(options =
 });
 
 builder.Services.AddScoped<IGeminiService, GeminiService>();
+builder.Services.AddScoped<IBlobStorageService, BlobStorageService>();
 builder.Services.AddSingleton(provider =>
 {
     // IConfiguration をDIコンテナから取得

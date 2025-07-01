@@ -159,4 +159,27 @@ public class GeminiService : IGeminiService // IGeminiService インターフェ
             throw new Exception($"Failed to parse response from Gemini API ({modelName}).", ex);
         }
     }
+
+    public async Task<string> GenerateImagePromptAsync(List<ChatMessage> history, CancellationToken cancellationToken = default)
+    {
+        var model = _config["Gemini:TranslationModel"] ?? "gemini-2.5-flash-preview-05-20"; // 翻訳・要約向けのモデルを使用
+        var generationConfig = new GeminiGenerationConfig
+        {
+            Temperature = _config.GetValue<double?>("Gemini:TranslationTemperature") ?? 0.3, // 少し創造性を持たせる
+            MaxOutputTokens = _config.GetValue<int?>("Gemini:TranslationMaxOutputTokens") ?? 256
+        };
+
+        // Geminiに与える指示（システムプロンプト）
+        string imagePromptInstruction =
+            "You are an expert in creating high-quality image generation prompts. " +
+            "Based on the following conversation history, generate a single, concise English prompt for an image generation AI (like Stable Diffusion or Imagen). " +
+            "The prompt should capture the essence of the last AI's message, including the character's actions, emotions, and the surrounding scene. " +
+            "The prompt must be in English, tag-based, and comma-separated. " +
+            "Always start the prompt with 'masterpiece, best quality, very aesthetic, absurdres'. Do not include any other text or explanation. " +
+            "Example output: masterpiece, best quality, very aesthetic, absurdres, 1girl, solo, smile, long blonde hair, school uniform, sitting on a park bench, sunny day, cherry blossoms";
+
+        // CallGeminiApiAsyncを呼び出す
+        // 最後のユーザープロンプトは不要なので空文字を渡す
+        return await CallGeminiApiAsync(model, "", imagePromptInstruction, history, generationConfig, cancellationToken);
+    }
 }
