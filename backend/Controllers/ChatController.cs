@@ -8,7 +8,8 @@ using AiRoleplayChat.Backend.Data;
 using System.ComponentModel.DataAnnotations;
 using Microsoft.AspNetCore.Authorization;
 using System.Text.RegularExpressions;
-using static AiRoleplayChat.Backend.Utils.PromptUtils;
+using AiRoleplayChat.Backend.Utils;
+using static AiRoleplayChat.Backend.Utils.PromptUtils; // PromptUtils の using を確認
 
 namespace AiRoleplayChat.Backend.Controllers;
 
@@ -48,8 +49,8 @@ public class ChatController : BaseApiController
         if (errorResult != null) return errorResult;
 
         var latestSession = await _context.ChatSessions
-            .Where(s => s.CharacterProfileId == characterId && s.UserId == appUserId && s.EndTime == null) // アクティブなセッションを検索
-            .OrderByDescending(s => s.StartTime) // 開始時刻が最新のもの
+            .Where(s => s.CharacterProfileId == characterId && s.UserId == appUserId && s.EndTime == null)
+            .OrderByDescending(s => s.StartTime)
             .FirstOrDefaultAsync(cancellationToken);
 
         if (latestSession == null)
@@ -63,9 +64,9 @@ public class ChatController : BaseApiController
     }
 
     [HttpGet("history", Name = "GetChatHistory")]
-    [ProducesResponseType(typeof(IEnumerable<ChatMessageResponseDto>), StatusCodes.Status200OK)] // ★ DTO を使うことを推奨
+    [ProducesResponseType(typeof(IEnumerable<ChatMessageResponseDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    [ProducesResponseType(StatusCodes.Status404NotFound)] // セッションが見つからない場合
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<ActionResult<IEnumerable<ChatMessageResponseDto>>> GetChatHistory(
         [FromQuery][Required] string sessionId,
         CancellationToken cancellationToken)
@@ -74,7 +75,6 @@ public class ChatController : BaseApiController
         var (appUserId, errorResult) = await GetCurrentAppUserIdAsync(cancellationToken);
         if (errorResult != null) return errorResult;
 
-        // 0. セッションが存在するか確認
         var sessionExists = await _context.ChatSessions.AnyAsync(s => s.Id == sessionId && s.UserId == appUserId, cancellationToken);
         if (!sessionExists)
         {
@@ -82,18 +82,16 @@ public class ChatController : BaseApiController
             return NotFound($"Session with ID {sessionId} not found.");
         }
 
-        // 1. 指定された sessionId と UserId に紐づくメッセージを Timestamp の昇順で取得
         var messages = await _context.ChatMessages
                                      .Where(m => m.SessionId == sessionId && m.UserId == appUserId)
-                                     .OrderBy(m => m.Timestamp) // 古い順に取得
-                                                                // .Take(100) // 必要なら取得件数に上限を設ける
-                                     .Select(m => new ChatMessageResponseDto // ★ エンティティを直接返さず DTO にマッピング推奨
+                                     .OrderBy(m => m.Timestamp)
+                                     .Select(m => new ChatMessageResponseDto
                                      {
                                          Id = m.Id,
                                          Sender = m.Sender,
                                          Text = m.Text,
                                          ImageUrl = m.ImageUrl,
-                                         Timestamp = m.Timestamp // ISO 8601 形式の文字列で返すのが一般的
+                                         Timestamp = m.Timestamp
                                      })
                                      .ToListAsync(cancellationToken);
 
@@ -115,7 +113,6 @@ public class ChatController : BaseApiController
         if (errorResult != null) return errorResult;
         if (appUserId == null) return BadRequest("User ID cannot be null.");
 
-        // 0. キャラクターが存在するか確認
         var character = await _context.CharacterProfiles.FindAsync(new object[] { request.CharacterProfileId }, cancellationToken);
         if (character == null)
         {
@@ -123,39 +120,30 @@ public class ChatController : BaseApiController
             return NotFound($"Character with ID {request.CharacterProfileId} not found.");
         }
 
-        // 1. セッションを特定または新規作成
         ChatSession? session = await GetOrCreateSessionAsync(request.SessionId, request.CharacterProfileId, appUserId.Value, cancellationToken);
         if (session == null) return StatusCode(500, "Failed to get or create session.");
 
-        // 2. ユーザーの発言を保存
-        ChatMessage userMessage; // 保存後のエンティティを受け取る
-        try
-        {
-            userMessage = await _chatMessageService.AddMessageAsync(
-                session.Id,
-                request.CharacterProfileId,
-                appUserId.Value,
-                "user",
-                request.Prompt,
-                null, // imageUrl は null とする
-                DateTime.UtcNow, // Timestamp
-                cancellationToken
-            );
-            _logger.LogInformation("User message saved via service. SessionId: {SessionId}, MessageId: {MessageId}", session.Id, userMessage.Id);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to save user message using ChatMessageService for SessionId: {SessionId}", session.Id);
-            return StatusCode(StatusCodes.Status500InternalServerError, "ユーザーメッセージの保存中にエラーが発生しました。");
-        }
-
-
-        // 3. 履歴を取得
+        // 1. 過去の履歴をDBから取得
         List<ChatMessage> history = await _context.ChatMessages
                                 .Where(m => m.SessionId == session.Id)
-                                .OrderByDescending(m => m.Timestamp) // 新しい順に取得
-                                .Take(100)
+                                .OrderBy(m => m.Timestamp) // Geminiに渡すため昇順
+                                .AsNoTracking()
                                 .ToListAsync(cancellationToken);
+
+        // 2. 今回のユーザー発言をメモリ上にのみ作成 (DBにはまだ保存しない)
+        var userMessage = new ChatMessage
+        {
+            SessionId = session.Id,
+            CharacterProfileId = request.CharacterProfileId,
+            UserId = appUserId.Value,
+            Sender = "user",
+            Text = request.Prompt,
+            Timestamp = DateTime.UtcNow,
+            // CreatedAt, UpdatedAtはDB保存時に自動設定される想定
+        };
+
+        // 3. AIに渡すため、取得した履歴に今回の発言を追加
+        var historyForGeneration = new List<ChatMessage>(history) { userMessage };
 
         // 4. GeminiService で応答を取得
         string aiReplyTextWithPotentialTag;
@@ -163,10 +151,8 @@ public class ChatController : BaseApiController
         {
             aiReplyTextWithPotentialTag = await _geminiService.GenerateChatResponseAsync(
                 request.Prompt,
-                SystemPromptHelper.AppendImageInstruction(character.SystemPrompt
-                // システムプロンプトが無い場合は、キャラクタープロフィールから生成
-                 ?? SystemPromptHelper.GenerateDefaultPrompt(character.Name, character.Personality, character.Tone, character.Backstory)),
-                history,
+                SystemPromptHelper.AppendImageInstruction(character.SystemPrompt ?? SystemPromptHelper.GenerateDefaultPrompt(character.Name, character.Personality, character.Tone, character.Backstory)),
+                historyForGeneration, // 今回の発言を含んだ履歴を渡す
                 cancellationToken
              );
             _logger.LogInformation("Gemini response received for session {SessionId}", session.Id);
@@ -177,53 +163,43 @@ public class ChatController : BaseApiController
             return StatusCode(StatusCodes.Status500InternalServerError, "AI応答の生成中にエラーが発生しました。");
         }
 
-        string finalAiReplyText = aiReplyTextWithPotentialTag; // 最終的な応答テキスト
-        string? generatedImageUrl = null;                     // 生成された画像URL
+        string finalAiReplyText = aiReplyTextWithPotentialTag;
+        string? generatedImageUrl = null;
         Match imageTagMatch = Regex.Match(aiReplyTextWithPotentialTag, @"\[generate_image:\s*(.*?)\]");
 
         if (imageTagMatch.Success)
         {
-            string imagePrompt = imageTagMatch.Groups[1].Value.Trim(); // タグから英語プロンプトを抽出
+            string imagePrompt = imageTagMatch.Groups[1].Value.Trim();
             _logger.LogInformation("Image generation requested by AI for session {SessionId}. Prompt: '{ImagePrompt}'", session.Id, imagePrompt);
-
-            // 元の応答テキストからタグを削除 (または適切に整形)
             finalAiReplyText = aiReplyTextWithPotentialTag.Replace(imageTagMatch.Value, "").Trim();
-            // 必要であれば「画像を生成したよ」的なメッセージを追加しても良い
-            // finalAiReplyText += "\n（画像を生成しました）";
 
             if (!string.IsNullOrWhiteSpace(imagePrompt))
             {
                 try
                 {
                     generatedImageUrl = await _imagenService.GenerateImageAsync(imagePrompt, cancellationToken);
-
                     if (!string.IsNullOrEmpty(generatedImageUrl))
                     {
                         _logger.LogInformation("Image generated successfully for session {SessionId}", session.Id);
                     }
                     else
                     {
-                        _logger.LogWarning("ImagenService returned null for session {SessionId}. Prompt: '{ImagePrompt}'", session.Id, imagePrompt);
-                        // 画像生成失敗時の代替テキストを応答に追加してもよい
-                        // finalAiReplyText += "\n（画像生成に失敗しました）";
+                         _logger.LogWarning("ImagenService returned null for session {SessionId}. Prompt: '{ImagePrompt}'", session.Id, imagePrompt);
                     }
                 }
                 catch (Exception ex)
                 {
                     _logger.LogError(ex, "Error calling Imagen service for session {SessionId}", session.Id);
-                    // 画像生成失敗時の代替テキストを応答に追加してもよい
-                    // finalAiReplyText += "\n（画像生成中にエラーが発生しました）";
                 }
             }
             else
             {
-                _logger.LogWarning("Image generation tag found but prompt was empty for session {SessionId}.", session.Id);
-                finalAiReplyText += "\n（画像生成の指示がありましたが、プロンプトが空でした）";
+                 _logger.LogWarning("Image generation tag found but prompt was empty for session {SessionId}.", session.Id);
+                 finalAiReplyText += "\n（画像生成の指示がありましたが、プロンプトが空でした）";
             }
         }
 
-
-        // 5. AI の応答を保存
+        // 5. AI の応答メッセージを作成
         var aiMessage = new ChatMessage
         {
             SessionId = session.Id,
@@ -234,11 +210,14 @@ public class ChatController : BaseApiController
             ImageUrl = generatedImageUrl,
             Timestamp = DateTime.UtcNow,
         };
-        _context.ChatMessages.Add(aiMessage);
+        
+        // 6. 応答成功後、ユーザーの発言とAIの発言を両方DBに保存
+        // (ChatMessageServiceを使わず、直接ContextにAddRangeする)
+        _context.ChatMessages.AddRange(userMessage, aiMessage);
         await _context.SaveChangesAsync(cancellationToken);
-        _logger.LogInformation("AI message saved for session {SessionId}", session.Id);
+        _logger.LogInformation("User and AI messages saved for session {SessionId}", session.Id);
 
-        // 6. フロントエンドに応答を返す
+        // 7. フロントエンドに応答を返す
         var response = new ChatResponse(finalAiReplyText, session.Id, generatedImageUrl);
 
         return Ok(response);
@@ -252,7 +231,7 @@ public class ChatController : BaseApiController
             session = await _context.ChatSessions
                 .FirstOrDefaultAsync(s => s.Id == requestedSessionId && s.CharacterProfileId == characterId && s.UserId == userId, cancellationToken);
 
-            if (session == null || session.EndTime != null) // 見つからない or 終了済み
+            if (session == null || session.EndTime != null)
             {
                 _logger.LogWarning("Session ID {SessionId} invalid or ended. Creating new.", requestedSessionId);
                 session = await CreateNewSession(characterId, userId, cancellationToken);
@@ -260,33 +239,26 @@ public class ChatController : BaseApiController
             else
             {
                 session.UpdatedAt = DateTime.UtcNow;
-                // Note: SaveChanges needed if only updating UpdatedAt here. Consider if this update is necessary on every message.
+                await _context.SaveChangesAsync(cancellationToken);
             }
         }
         else
         {
             session = await CreateNewSession(characterId, userId, cancellationToken);
         }
-        // SaveChanges for UpdatedAt if needed
-        // await _context.SaveChangesAsync(cancellationToken);
         return session;
     }
 
-    // セッションを新規作成するヘルパーメソッド
     private async Task<ChatSession> CreateNewSession(int characterId, int userId, CancellationToken cancellationToken)
     {
         var newSession = new ChatSession
         {
-            // Id はエンティティのデフォルト値で UUID が生成される想定
             CharacterProfileId = characterId,
             UserId = userId,
             StartTime = DateTime.UtcNow,
-            // EndTime は NULL
-            // Metadata は NULL
-            // CreatedAt, UpdatedAt はデフォルト値
         };
         _context.ChatSessions.Add(newSession);
-        await _context.SaveChangesAsync(cancellationToken); // セッションをDBに保存
+        await _context.SaveChangesAsync(cancellationToken);
         _logger.LogInformation("New session created: {SessionId}", newSession.Id);
         return newSession;
     }
