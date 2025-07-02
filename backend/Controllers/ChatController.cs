@@ -190,7 +190,7 @@ public class ChatController : BaseApiController
         };
 
         // AIの発言をDBに保存
-        _context.ChatMessages.Add(aiMessage);
+        _context.ChatMessages.AddRange(userMessage, aiMessage);
         await _context.SaveChangesAsync(cancellationToken);
 
         // フロントエンドに応答を返す
