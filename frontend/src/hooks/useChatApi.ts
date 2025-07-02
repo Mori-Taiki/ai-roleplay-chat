@@ -1,7 +1,6 @@
 import { useState, useCallback } from 'react';
 import { getApiErrorMessage, getGenericErrorMessage } from '../utils/errorHandler';
 import { ChatResponse } from '../models/ChatResponse';
-import { ImageResponse } from '../models/ImageResponse';
 import { Message } from '../models/Message';
 import { useAuth } from './useAuth';
 
@@ -13,15 +12,17 @@ interface UseChatApiReturn {
   sendMessage: (
     characterId: number,
     prompt: string,
-    sessionId: string | null,
-    history?: { user: string; model: string }[]
-  ) => Promise<ChatResponse | null>; // 履歴も渡せるように
-  generateImage: (characterId: number, prompt: string) => Promise<ImageResponse | null>;
-  isLoadingHistory: boolean; // ★ 履歴読み込み中フラグ
+    sessionId: string | null
+  ) => Promise<ChatResponse | null>; // ★ 戻り値の型を更新
+  generateAndUploadImage: (messageId: number) => Promise<ImageUploadResponse | null>; 
+  isLoadingHistory: boolean;
   fetchHistory: (sessionId: string) => Promise<Message[] | null>;
-  isLoadingLatestSession: boolean; // ★ 追加
+  isLoadingLatestSession: boolean;
   fetchLatestSessionId: (characterId: number) => Promise<string | null>;
-  error: string | null; // 共通のエラー状態
+  error: string | null;
+}
+interface ImageUploadResponse {
+  imageUrl: string;
 }
 
 export const useChatApi = (): UseChatApiReturn => {
@@ -37,7 +38,6 @@ export const useChatApi = (): UseChatApiReturn => {
       characterId: number,
       prompt: string,
       sessionId: string | null,
-      history: any[] = []
     ): Promise<ChatResponse | null> => {
       const accessToken = await acquireToken(); 
       if (!accessToken) return null; // ★ トークンなければ中断
@@ -45,12 +45,10 @@ export const useChatApi = (): UseChatApiReturn => {
       setIsSendingMessage(true);
       setError(null);
       try {
-        // TODO: history の形式を ChatRequest に合わせる
         const requestBody = {
           Prompt: prompt,
           CharacterProfileId: characterId,
           SessionId: sessionId,
-          History: history,
         };
         const response = await fetch(`${API_BASE_URL}/api/chat`, {
           method: 'POST',
@@ -65,27 +63,27 @@ export const useChatApi = (): UseChatApiReturn => {
         return data;
       } catch (err) {
         const message = getGenericErrorMessage(err, 'メッセージ送信');
-        setError(message); // フック内でエラー状態を保持
+        setError(message);
         console.error('Send message error:', err);
         return null;
       } finally {
         setIsSendingMessage(false);
       }
     },
-    [acquireToken, setError]
+    [acquireToken]
   );
 
-  const generateImage = useCallback(
-    async (characterId: number, prompt: string): Promise<ImageResponse | null> => {
+  const generateAndUploadImage = useCallback(
+    async (messageId: number): Promise<ImageUploadResponse | null> => {
       const accessToken = await acquireToken(); 
-      if (!accessToken) return null; // ★ トークンなければ中断
+      if (!accessToken) return null;
 
       setIsGeneratingImage(true);
       setError(null);
       try {
-        // TODO: 画像生成 API が characterId を必要とするか確認
-        const requestBody = { Prompt: prompt, CharacterProfileId: characterId }; // 必要なら CharacterProfileId を含める
-        const response = await fetch(`${API_BASE_URL}/api/image/generate`, {
+        const requestBody = { MessageId: messageId };
+        // ★ 新しいエンドポイントを呼び出す
+        const response = await fetch(`${API_BASE_URL}/api/image/generate-and-upload`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
           body: JSON.stringify(requestBody),
@@ -94,7 +92,7 @@ export const useChatApi = (): UseChatApiReturn => {
           const message = await getApiErrorMessage(response);
           throw new Error(message);
         }
-        const data: ImageResponse = await response.json(); // { mimeType, base64Data } を想定
+        const data: ImageUploadResponse = await response.json(); // { imageUrl } を想定
         return data;
       } catch (err) {
         const message = getGenericErrorMessage(err, '画像生成');
@@ -105,21 +103,20 @@ export const useChatApi = (): UseChatApiReturn => {
         setIsGeneratingImage(false);
       }
     },
-    [acquireToken, setError]
+    [acquireToken]
   );
 
   const fetchHistory = useCallback(
     async (sessionId: string): Promise<Message[] | null> => {
       const accessToken = await acquireToken();
-      if (!accessToken) return null; // ★ トークンなければ中断
+      if (!accessToken) return null;
 
       setIsLoadingHistory(true);
       setError(null);
       try {
-        // ★ GET リクエストで履歴取得 API を呼び出す
         const response = await fetch(`${API_BASE_URL}/api/chat/history?sessionId=${encodeURIComponent(sessionId)}`, {
           headers: {
-            Authorization: `Bearer ${accessToken}`, // ★ ヘッダーに追加
+            Authorization: `Bearer ${accessToken}`,
           },
         });
 
@@ -127,15 +124,12 @@ export const useChatApi = (): UseChatApiReturn => {
           const message = await getApiErrorMessage(response);
           throw new Error(message);
         }
-        // ★ バックエンドの DTO に合わせた型で受け取る (id や timestamp の型変換が必要な場合がある)
         const historyData = await response.json();
-        // ★ 必要ならフロントエンドの Message[] 型に変換
         const formattedHistory: Message[] = historyData.map((item: any) => ({
-          id: item.id.toString(), // id を string に変換 (uuid じゃないので注意)
+          id: item.id.toString(),
           sender: item.sender,
           text: item.text,
           imageUrl: item.imageUrl,
-          // timestamp は必要なら Date オブジェクトに変換しても良い
         }));
         return formattedHistory;
       } catch (err) {
@@ -190,7 +184,7 @@ export const useChatApi = (): UseChatApiReturn => {
     isSendingMessage,
     isGeneratingImage,
     sendMessage,
-    generateImage,
+    generateAndUploadImage,
     error,
     isLoadingHistory,
     fetchHistory,
