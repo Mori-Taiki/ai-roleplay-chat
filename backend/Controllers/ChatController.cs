@@ -167,7 +167,7 @@ public class ChatController : BaseApiController
         bool requiresImageGeneration = false;
 
         // 応答に画像生成タグがあるかチェック
-        Match imageTagMatch = Regex.Match(aiReplyTextWithPotentialTag, @"\[generate_image:.*?\]");
+        Match imageTagMatch = Regex.Match(aiReplyTextWithPotentialTag, @"\[generate_image\]");
         if (imageTagMatch.Success)
         {
             requiresImageGeneration = true;

@@ -66,7 +66,15 @@ public class ImageController : BaseApiController // ★ ControllerBaseからBase
             return Forbid("指定されたメッセージを操作する権限がありません。");
         }
 
-        // 2. DBから会話履歴を取得
+        // 2. DBからキャラクター設定と会話履歴を取得
+        var character = await _context.CharacterProfiles.AsNoTracking()
+                    .FirstOrDefaultAsync(c => c.Id == targetMessage.CharacterProfileId, cancellationToken);
+
+        if (character == null)
+        {
+            return Problem("画像生成の対象となるキャラクターが見つかりませんでした。");
+        }
+
         var history = await _context.ChatMessages.AsNoTracking()
                             .Where(m => m.SessionId == targetMessage.SessionId && m.Timestamp <= targetMessage.Timestamp)
                             .OrderBy(m => m.Timestamp)
@@ -77,11 +85,16 @@ public class ImageController : BaseApiController // ★ ControllerBaseからBase
             return Problem("画像生成の元となる会話履歴が見つかりませんでした。");
         }
 
-        // 3. Geminiにプロンプト生成を依頼
+        if (!history.Any())
+        {
+            return Problem("画像生成の元となる会話履歴が見つかりませんでした。");
+        }
+
+        // 3. Geminiにプロンプト生成を依頼 
         string englishPrompt;
         try
         {
-            englishPrompt = await _geminiService.GenerateImagePromptAsync(history, cancellationToken);
+            englishPrompt = await _geminiService.GenerateImagePromptAsync(character, history, cancellationToken);
             _logger.LogInformation("Generated image prompt for MessageId {MessageId}: '{Prompt}'", request.MessageId, englishPrompt);
         }
         catch (Exception ex)
