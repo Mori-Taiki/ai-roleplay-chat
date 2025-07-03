@@ -76,7 +76,7 @@ public class GeminiService : IGeminiService // IGeminiService インターフェ
         var contents = new List<GeminiContent>();
 
         // 1. 履歴を Contents 形式に変換して追加 (トークン数制限を考慮 - まずは件数制限)
-        const int MaxHistoryCount = 10;
+        const int MaxHistoryCount = 30;
         var recentHistory = history.OrderByDescending(h => h.Timestamp).Take(MaxHistoryCount).Reverse(); // 新しい順に N 件取得し、再度古い順に戻す
 
         foreach (var message in recentHistory)
@@ -160,26 +160,52 @@ public class GeminiService : IGeminiService // IGeminiService インターフェ
         }
     }
 
-    public async Task<string> GenerateImagePromptAsync(List<ChatMessage> history, CancellationToken cancellationToken = default)
+    public async Task<string> GenerateImagePromptAsync(
+        CharacterProfile character, 
+        List<ChatMessage> history, 
+        CancellationToken cancellationToken = default)
     {
-        var model = _config["Gemini:TranslationModel"] ?? "gemini-2.5-flash-preview-05-20"; // 翻訳・要約向けのモデルを使用
+        var model = _config["Gemini:TranslationModel"] ?? "gemini-1.5-flash-latest";
         var generationConfig = new GeminiGenerationConfig
         {
-            Temperature = _config.GetValue<double?>("Gemini:TranslationTemperature") ?? 0.3, // 少し創造性を持たせる
+            Temperature = _config.GetValue<double?>("Gemini:TranslationTemperature") ?? 0.4, // 少し創造性を上げる
             MaxOutputTokens = _config.GetValue<int?>("Gemini:TranslationMaxOutputTokens") ?? 256
         };
 
-        // Geminiに与える指示（システムプロンプト）
         string imagePromptInstruction =
-            "You are an expert in creating high-quality image generation prompts. " +
-            "Based on the following conversation history, generate a single, concise English prompt for an image generation AI (like Stable Diffusion or Imagen). " +
-            "The prompt should capture the essence of the last AI's message, including the character's actions, emotions, and the surrounding scene. " +
-            "The prompt must be in English, tag-based, and comma-separated. " +
-            "Always start the prompt with 'masterpiece, best quality, very aesthetic, absurdres'. Do not include any other text or explanation. " +
-            "Example output: masterpiece, best quality, very aesthetic, absurdres, 1girl, solo, smile, long blonde hair, school uniform, sitting on a park bench, sunny day, cherry blossoms";
+            "You are an expert in creating high-quality, Danbooru-style prompts for the Animagine XL 3.1 image generation model. " +
+            "Based on the provided Character Profile and conversation history, generate a single, concise English prompt.\n\n" +
 
+            $"## Character Profile:\n" +
+            $"- Name: {character.Name}\n" +
+            $"- Personality & Appearance: {character.Personality}\n" +
+            $"- Backstory & Other traits: {character.Backstory}\n\n" +
+
+            "## Prompt Generation Rules:\n" +
+            "1. **Tag-Based Only:** The entire prompt must be a series of comma-separated tags.\n" +
+            "2. **Mandatory Prefixes:** ALWAYS start the prompt with: `masterpiece, best quality, very aesthetic, absurdres`.\n" +
+            
+            "3. **Rating Modifier:** Immediately after the prefixes, you MUST add ONE of the following rating tags based on the conversation's context. \n" +
+            "   - `safe`: For wholesome or everyday scenes. (This is the default if unsure).\n" +
+            "   - `sensitive`: For slightly suggestive content, artistic nudity, swimwear, or mild violence.\n" +
+            "   - `nsfw`: For explicit themes, non-explicit nudity, or strong violence.\n" +
+            "   - `explicit`: For pornographic content or extreme violence/gore. Use this for 'Explicit' level content.\n\n" +
+
+            "4. **Year Modifier (Optional):** If the context suggests a specific era (e.g., retro, modern), you can add ONE of the following: `newest`, `recent`, `mid`, `early`, `oldest`.\n" +
+
+            "5. **Core Content (Tag Order Matters):** Structure the main part of the prompt in this order:\n" +
+            "   - Subject (e.g., `1girl`, `2boys`).\n" +
+            "   - Character details from the profile (e.g., `long blonde hair`, `blue eyes`).\n" +
+            "   - Scene details from the last message (clothing, pose, emotion, background, e.g., `wearing a school uniform`, `sitting on a park bench`, `smiling`, `night`, `rain`).\n" +
+
+            "6. **Final Output:** Do not include any explanation or markdown. Only the final comma-separated prompt.\n\n" +
+            
+            "## Example Output:\n" +
+            "masterpiece, best quality, very aesthetic, absurdres, safe, newest, 1girl, amelia, from_my_novel, long blonde hair, blue eyes, smiling, wearing a school uniform, sitting on a park bench, sunny day, cherry blossoms";
+
+        
         // CallGeminiApiAsyncを呼び出す
-        // 最後のユーザープロンプトは不要なので空文字を渡す
+        // systemPromptとして新しい指示を渡し、ユーザープロンプトは空でOK
         return await CallGeminiApiAsync(model, "", imagePromptInstruction, history, generationConfig, cancellationToken);
     }
 }

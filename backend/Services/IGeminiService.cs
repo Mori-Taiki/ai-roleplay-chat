@@ -16,5 +16,8 @@ public interface IGeminiService
     /// <summary>
     /// 会話履歴から画像生成用の英語プロンプトを生成します。
     /// </summary>
-    Task<string> GenerateImagePromptAsync(List<ChatMessage> history, CancellationToken cancellationToken = default);
+    Task<string> GenerateImagePromptAsync(
+        CharacterProfile character, 
+        List<ChatMessage> history, 
+        CancellationToken cancellationToken = default);
 }
