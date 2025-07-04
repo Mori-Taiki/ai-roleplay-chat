@@ -45,26 +45,6 @@ public class GeminiService : IGeminiService // IGeminiService インターフェ
         return await CallGeminiApiAsync(model, prompt, systemPrompt, history, generationConfig, cancellationToken);
     }
 
-    /// <summary>
-    /// 指定された日本語テキストを画像生成に適した英語プロンプトに翻訳します。
-    /// </summary>
-    public async Task<string> TranslateToEnglishAsync(string japaneseText, CancellationToken cancellationToken = default)
-    {
-        // 設定ファイルから翻訳用の設定を読み込む
-        var model = _config["Gemini:TranslationModel"] ?? "gemini-1.5-flash-latest";
-        var generationConfig = new GeminiGenerationConfig
-        {
-            Temperature = _config.GetValue<double?>("Gemini:TranslationTemperature") ?? 0.2,
-            MaxOutputTokens = _config.GetValue<int?>("Gemini:TranslationMaxOutputTokens") ?? 256
-        };
-
-        // 必要なら、より画像生成向けにする指示を追加
-        string translationInstruction = $"Translate the following Japanese text into a detailed English prompt suitable for an image generation AI (like Imagen). Focus on descriptive nouns and adjectives.";
-
-        // 共通メソッドを呼び出す
-        return await CallGeminiApiAsync(model, japaneseText, translationInstruction, new List<ChatMessage>(), generationConfig, cancellationToken);
-    }
-
     // --- Gemini API を呼び出す共通プライベートメソッド ---
     private async Task<string> CallGeminiApiAsync(string modelName, string promptText, string? systemPrompt, List<ChatMessage> history, GeminiGenerationConfig generationConfig, CancellationToken cancellationToken)
     {

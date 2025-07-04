@@ -142,17 +142,15 @@ public class ChatController : BaseApiController
             // CreatedAt, UpdatedAtはDB保存時に自動設定される想定
         };
 
-        // 3. AIに渡すため、取得した履歴に今回の発言を追加
-        var historyForGeneration = new List<ChatMessage>(history) { userMessage };
 
-        // 4. GeminiService で応答を取得
+        // 3. GeminiService で応答を取得
         string aiReplyTextWithPotentialTag;
         try
         {
             aiReplyTextWithPotentialTag = await _geminiService.GenerateChatResponseAsync(
                 request.Prompt,
                 SystemPromptHelper.AppendImageInstruction(character.SystemPrompt ?? SystemPromptHelper.GenerateDefaultPrompt(character.Name, character.Personality, character.Tone, character.Backstory)),
-                historyForGeneration, // 今回の発言を含んだ履歴を渡す
+                history,
                 cancellationToken
              );
             _logger.LogInformation("Gemini response received for session {SessionId}", session.Id);
@@ -166,7 +164,7 @@ public class ChatController : BaseApiController
         string finalAiReplyText = aiReplyTextWithPotentialTag;
         bool requiresImageGeneration = false;
 
-        // 応答に画像生成タグがあるかチェック
+        // 4. 応答に画像生成タグがあるかチェック
         Match imageTagMatch = Regex.Match(aiReplyTextWithPotentialTag, @"\[generate_image\]");
         if (imageTagMatch.Success)
         {
