@@ -41,32 +41,14 @@ public class GeminiService : IGeminiService // IGeminiService インターフェ
             MaxOutputTokens = _config.GetValue<int?>("Gemini:DefaultMaxOutputTokens") ?? 1024
         };
 
-        // 共通メソッドを呼び出す
-        return await CallGeminiApiAsync(model, prompt, systemPrompt, history, generationConfig, cancellationToken);
-    }
-
-    /// <summary>
-    /// 指定された日本語テキストを画像生成に適した英語プロンプトに翻訳します。
-    /// </summary>
-    public async Task<string> TranslateToEnglishAsync(string japaneseText, CancellationToken cancellationToken = default)
-    {
-        // 設定ファイルから翻訳用の設定を読み込む
-        var model = _config["Gemini:TranslationModel"] ?? "gemini-1.5-flash-latest";
-        var generationConfig = new GeminiGenerationConfig
-        {
-            Temperature = _config.GetValue<double?>("Gemini:TranslationTemperature") ?? 0.2,
-            MaxOutputTokens = _config.GetValue<int?>("Gemini:TranslationMaxOutputTokens") ?? 256
-        };
-
-        // 必要なら、より画像生成向けにする指示を追加
-        string translationInstruction = $"Translate the following Japanese text into a detailed English prompt suitable for an image generation AI (like Imagen). Focus on descriptive nouns and adjectives.";
+        const int MaxHistoryCount = 30;
 
         // 共通メソッドを呼び出す
-        return await CallGeminiApiAsync(model, japaneseText, translationInstruction, new List<ChatMessage>(), generationConfig, cancellationToken);
+        return await CallGeminiApiAsync(model, prompt, systemPrompt, history, MaxHistoryCount, generationConfig, cancellationToken);
     }
 
     // --- Gemini API を呼び出す共通プライベートメソッド ---
-    private async Task<string> CallGeminiApiAsync(string modelName, string promptText, string? systemPrompt, List<ChatMessage> history, GeminiGenerationConfig generationConfig, CancellationToken cancellationToken)
+    private async Task<string> CallGeminiApiAsync(string modelName, string promptText, string? systemPrompt, List<ChatMessage> history, int MaxHistoryCount, GeminiGenerationConfig generationConfig, CancellationToken cancellationToken)
     {
         // APIキーはコンストラクタで取得・チェック済み
         var geminiApiUrl = $"https://generativelanguage.googleapis.com/v1beta/models/{modelName}:generateContent?key={_apiKey}";
@@ -76,7 +58,6 @@ public class GeminiService : IGeminiService // IGeminiService インターフェ
         var contents = new List<GeminiContent>();
 
         // 1. 履歴を Contents 形式に変換して追加 (トークン数制限を考慮 - まずは件数制限)
-        const int MaxHistoryCount = 30;
         var recentHistory = history.OrderByDescending(h => h.Timestamp).Take(MaxHistoryCount).Reverse(); // 新しい順に N 件取得し、再度古い順に戻す
 
         foreach (var message in recentHistory)
@@ -85,9 +66,16 @@ public class GeminiService : IGeminiService // IGeminiService インターフェ
             {
                 Role = message.Sender == "user" ? "user" : "model",
                 Parts = new[] { new GeminiPart { Text = message.Text } }
-                // TODO: 画像メッセージの扱い (ImageUrl がある場合、Part に画像データを含めるか？ - Gemini API の仕様確認)
             });
         }
+
+        // セーフティ設定を定義
+        var safetySettings = new[]
+        {
+            new GeminiSafetySetting { Category = "HARM_CATEGORY_SEXUALLY_EXPLICIT", Threshold = "BLOCK_NONE" },
+            new GeminiSafetySetting { Category = "HARM_CATEGORY_HARASSMENT", Threshold = "BLOCK_NONE" },
+            new GeminiSafetySetting { Category = "HARM_CATEGORY_DANGEROUS_CONTENT", Threshold = "BLOCK_NONE" }
+        };
 
         // 2. 新しいユーザープロンプトを追加
         contents.Add(new GeminiContent
@@ -101,8 +89,9 @@ public class GeminiService : IGeminiService // IGeminiService インターフェ
             Contents = contents.ToArray(),
             GenerationConfig = generationConfig,
             SystemInstruction = !string.IsNullOrWhiteSpace(systemPrompt)
-        ? new GeminiContent { Parts = new[] { new GeminiPart { Text = systemPrompt } } }
-        : null
+            ? new GeminiContent { Parts = new[] { new GeminiPart { Text = systemPrompt } } }
+            : null,
+            SafetySettings = safetySettings
         };
 
         HttpResponseMessage responseRaw;
@@ -161,8 +150,8 @@ public class GeminiService : IGeminiService // IGeminiService インターフェ
     }
 
     public async Task<string> GenerateImagePromptAsync(
-        CharacterProfile character, 
-        List<ChatMessage> history, 
+        CharacterProfile character,
+        List<ChatMessage> history,
         CancellationToken cancellationToken = default)
     {
         var model = _config["Gemini:TranslationModel"] ?? "gemini-1.5-flash-latest";
@@ -184,7 +173,7 @@ public class GeminiService : IGeminiService // IGeminiService インターフェ
             "## Prompt Generation Rules:\n" +
             "1. **Tag-Based Only:** The entire prompt must be a series of comma-separated tags.\n" +
             "2. **Mandatory Prefixes:** ALWAYS start the prompt with: `masterpiece, best quality, very aesthetic, absurdres`.\n" +
-            
+
             "3. **Rating Modifier:** Immediately after the prefixes, you MUST add ONE of the following rating tags based on the conversation's context. \n" +
             "   - `safe`: For wholesome or everyday scenes. (This is the default if unsure).\n" +
             "   - `sensitive`: For slightly suggestive content, artistic nudity, swimwear, or mild violence.\n" +
@@ -199,13 +188,14 @@ public class GeminiService : IGeminiService // IGeminiService インターフェ
             "   - Scene details from the last message (clothing, pose, emotion, background, e.g., `wearing a school uniform`, `sitting on a park bench`, `smiling`, `night`, `rain`).\n" +
 
             "6. **Final Output:** Do not include any explanation or markdown. Only the final comma-separated prompt.\n\n" +
-            
+
             "## Example Output:\n" +
             "masterpiece, best quality, very aesthetic, absurdres, safe, newest, 1girl, amelia, from_my_novel, long blonde hair, blue eyes, smiling, wearing a school uniform, sitting on a park bench, sunny day, cherry blossoms";
 
-        
+            const int MaxHistoryCount = 6;
+
         // CallGeminiApiAsyncを呼び出す
         // systemPromptとして新しい指示を渡し、ユーザープロンプトは空でOK
-        return await CallGeminiApiAsync(model, "", imagePromptInstruction, history, generationConfig, cancellationToken);
+        return await CallGeminiApiAsync(model, "", imagePromptInstruction, history, MaxHistoryCount, generationConfig, cancellationToken);
     }
 }
