@@ -3,9 +3,12 @@ import { Message } from '../models/Message';
 import styles from './MessageItem.module.css';
 import Button from './Button';
 
+interface DisplayMessage extends Message {
+  isImageLoading?: boolean;
+}
 interface MessageItemProps {
   characterName: string;
-  message: Message;
+  message: DisplayMessage;
   onRetry: (prompt: string) => void;
   isLatestUserMessage: boolean;
 }
@@ -39,6 +42,13 @@ const MessageItem: React.FC<MessageItemProps> = ({ characterName, message, onRet
           alt="生成された画像"
           className={styles.image}
         />
+      )}
+
+      {message.isImageLoading && !message.imageUrl && (
+        <div className={styles.imageLoading}>
+          <div className={styles.spinner}></div>
+          <span>画像生成中...</span>
+        </div>
       )}
     </div>
   );
