@@ -12,7 +12,7 @@ import { Message } from '../models/Message';
 type ChatAction =
   | { type: 'SET_HISTORY'; payload: Message[] }
   | { type: 'ADD_USER_MESSAGE'; payload: { text: string } }
-  | { type: 'ADD_AI_RESPONSE'; payload: { text: string; id: string } }
+  | { type: 'ADD_AI_RESPONSE'; payload: { text: string; id: string, requiresImageGeneration: boolean, } }
   | { type: 'UPDATE_IMAGE_URL'; payload: { messageId: string; imageUrl: string } }
   | { type: 'ADD_ERROR_MESSAGE'; payload: { text: string } };
 interface DisplayMessage extends Message {
@@ -52,7 +52,7 @@ function chatReducer(state: ChatState, action: ChatAction): ChatState {
             id: action.payload.id,
             sender: 'ai',
             text: action.payload.text,
-            isImageLoading: true,
+             isImageLoading: action.payload.requiresImageGeneration,
           },
         ],
       };
@@ -148,7 +148,7 @@ function ChatPage() {
         const aiMessageId = response.aiMessageId.toString();
         dispatch({
           type: 'ADD_AI_RESPONSE',
-          payload: { text: response.reply, id: aiMessageId },
+          payload: { text: response.reply, id: aiMessageId, requiresImageGeneration: response.requiresImageGeneration, },
         });
         setCurrentSessionId(response.sessionId);
 
@@ -186,7 +186,7 @@ function ChatPage() {
         const aiMessageId = response.aiMessageId.toString();
         dispatch({
           type: 'ADD_AI_RESPONSE',
-          payload: { text: response.reply, id: aiMessageId },
+          payload: { text: response.reply, id: aiMessageId, requiresImageGeneration: response.requiresImageGeneration, },
         });
         setCurrentSessionId(response.sessionId);
         if (response.requiresImageGeneration) {

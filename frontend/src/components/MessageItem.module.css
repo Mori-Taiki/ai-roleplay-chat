@@ -39,3 +39,31 @@
     display: block;
     border-radius: 5px; /* 画像の角を少し丸める */
   }
+  
+.imageLoading {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem; /* 要素間のスペース */
+  padding: 0.5rem 0.75rem;
+  margin-top: 8px;
+  background-color: rgba(0, 0, 0, 0.04);
+  border-radius: 8px;
+  font-style: italic;
+  font-size: 0.9em;
+  color: #555;
+}
+
+.spinner {
+  width: 1rem;
+  height: 1rem;
+  border: 2px solid #ccc;
+  border-top-color: #333;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
