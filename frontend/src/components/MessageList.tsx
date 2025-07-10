@@ -8,9 +8,10 @@ interface MessageListProps {
   messages: Message[];
   isLoading: boolean;
   onRetry: (prompt: string) => void;
+  onGenerateImage: (messageId: string) => void; // ★ 追加
 }
 
-const MessageList: React.FC<MessageListProps> = ({ characterName, messages, isLoading, onRetry }) => {
+const MessageList: React.FC<MessageListProps> = ({ characterName, messages, isLoading, onRetry, onGenerateImage }) => {
   const chatWindowRef = useRef<HTMLDivElement>(null);
 
   const scrollToBottom = () => {
@@ -38,6 +39,7 @@ const MessageList: React.FC<MessageListProps> = ({ characterName, messages, isLo
             message={msg}
             onRetry={onRetry}
             isLatestUserMessage={isLatestUserMessage}
+            onGenerateImage={onGenerateImage} // ★ 追加
           />
         );
       })}

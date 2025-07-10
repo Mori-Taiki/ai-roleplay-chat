@@ -1,61 +1,66 @@
 // src/components/ChatInput.tsx
-import React from 'react';
-import Button from './Button'; // Button コンポーネントをインポート
-// import FormField from './FormField'; // FormField を使う場合
-// ★ CSS Modules を使う場合
+import React, { useRef, useEffect } from 'react'; // useRef, useEffect をインポート
+import Button from './Button';
 import styles from './ChatInput.module.css';
 
 interface ChatInputProps {
   value: string;
-  onChange: (event: React.ChangeEvent<HTMLInputElement>) => void;
+  // ★ onChange は (event) => void から (value: string) => void に変更
+  onChange: (value: string) => void; 
   onSendMessage: () => void;
-  // onGenerateImage: () => void;
-  onKeyDown: (event: React.KeyboardEvent<HTMLInputElement>) => void;
   isLoading: boolean;
-  isSendDisabled?: boolean; // 送信ボタンを個別制御したい場合 (任意)
-  isImageGenDisabled?: boolean; // 画像生成ボタンを個別制御したい場合 (任意)
+  isSendDisabled?: boolean;
 }
 
 const ChatInput: React.FC<ChatInputProps> = ({
   value,
   onChange,
   onSendMessage,
-  // onGenerateImage,
-  onKeyDown,
   isLoading,
   isSendDisabled = false,
-  // isImageGenDisabled = false,
 }) => {
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // ★ 入力値(value)の変更に応じて高さを自動調整する
+  useEffect(() => {
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto'; // 一旦高さをリセット
+      const scrollHeight = textareaRef.current.scrollHeight;
+      textareaRef.current.style.height = `${scrollHeight}px`; // 計算後の高さを設定
+    }
+  }, [value]);
+
+  // ★ Enterキーでの送信、Shift+Enterでの改行をハンドリング
+  const handleKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (event.key === 'Enter' && !event.shiftKey) {
+      event.preventDefault(); // デフォルトの改行動作をキャンセル
+      if (!isLoading && !isSendDisabled && value.trim()) {
+        onSendMessage();
+      }
+    }
+  };
+
   return (
-    // ★ CSS Modules を適用
     <div className={styles.inputArea}>
-      {/* シンプルな input の場合 */}
-      <input
-        type="text"
+      {/* ★ input を textarea に変更 */}
+      <textarea
+        ref={textareaRef}
         value={value}
-        onChange={onChange}
-        onKeyDown={onKeyDown}
-        placeholder="メッセージを入力..."
+        onChange={(e) => onChange(e.target.value)} // 親コンポーネントには値のみを渡す
+        onKeyDown={handleKeyDown}
+        placeholder="メッセージを入力 (Shift+Enterで改行)"
         disabled={isLoading}
-        className={styles.input} // ★ CSS Modules
+        className={styles.textarea} // CSSクラス名を変更
+        rows={1} // 初期表示は1行
       />
       <Button
         onClick={onSendMessage}
-        disabled={isLoading || isSendDisabled || !value.trim()} // ローディング中 or 個別無効 or 入力空
-        isLoading={isLoading /* 送信専用ローディングを使う場合 isSending */}
-        className={styles.sendButton} // ★ CSS Modules
+        disabled={isLoading || isSendDisabled || !value.trim()}
+        isLoading={isLoading}
+        className={styles.sendButton}
       >
         送信
       </Button>
-      {/* <Button
-        onClick={onGenerateImage}
-        disabled={isLoading || isImageGenDisabled || !value.trim()}
-        isLoading={isLoading}
-        variant="secondary" // または他の variant
-        className={styles.imageButton} // ★ CSS Modules
-      > 
-        画像生成
-      </Button>*/}
     </div>
   );
 };
