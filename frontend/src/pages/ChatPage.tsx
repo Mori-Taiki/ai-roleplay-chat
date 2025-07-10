@@ -13,6 +13,7 @@ type ChatAction =
   | { type: 'SET_HISTORY'; payload: Message[] }
   | { type: 'ADD_USER_MESSAGE'; payload: { text: string } }
   | { type: 'ADD_AI_RESPONSE'; payload: { text: string; id: string, requiresImageGeneration: boolean, } }
+  | { type: 'START_IMAGE_GENERATION'; payload: { messageId: string } } // ★ 追加
   | { type: 'UPDATE_IMAGE_URL'; payload: { messageId: string; imageUrl: string } }
   | { type: 'ADD_ERROR_MESSAGE'; payload: { text: string } };
 interface DisplayMessage extends Message {
@@ -33,6 +34,16 @@ function chatReducer(state: ChatState, action: ChatAction): ChatState {
       return {
         ...state,
         messages: [...state.messages, { id: uuidv4(), sender: 'user', text: action.payload.text }],
+      };
+    // ★ START_IMAGE_GENERATION アクションの処理を追加
+    case 'START_IMAGE_GENERATION':
+      return {
+        ...state,
+        messages: state.messages.map((msg) =>
+          msg.id === action.payload.messageId
+            ? { ...msg, isImageLoading: true }
+            : msg
+        ),
       };
     case 'UPDATE_IMAGE_URL':
       return {
@@ -175,6 +186,40 @@ function ChatPage() {
     },
     [inputValue, isLoading, characterId, currentSessionId, sendMessage, generateAndUploadImage, dispatch]
   );
+  
+  // ★ 新しいハンドラを追加
+  const handleGenerateImageForMessage = useCallback(
+    async (messageId: string) => {
+      if (isLoading || !messageId) return;
+      
+      const messageIdAsNumber = parseInt(messageId, 10);
+      if(isNaN(messageIdAsNumber)) return;
+
+      // 1. UIをローディング状態にする
+      dispatch({ type: 'START_IMAGE_GENERATION', payload: { messageId } });
+
+      // 2. 画像生成APIを呼び出す
+      const imageResponse = await generateAndUploadImage(messageIdAsNumber);
+
+      if (imageResponse) {
+        // 3. 成功したら画像URLで更新
+        dispatch({
+          type: 'UPDATE_IMAGE_URL',
+          payload: { messageId, imageUrl: imageResponse.imageUrl },
+        });
+      } else {
+        // 4. 失敗したらローディングを解除
+        console.error('Manual image generation failed for message ID:', messageId);
+        dispatch({
+          type: 'UPDATE_IMAGE_URL',
+          payload: { messageId, imageUrl: '' }, // isImageLoading: false にする
+        });
+        // 必要ならエラーメッセージを dispatch する
+        dispatch({ type: 'ADD_ERROR_MESSAGE', payload: { text: '画像の生成に失敗しました。' } });
+      }
+    },
+    [isLoading, generateAndUploadImage, dispatch]
+  );
 
   const handleRetry = useCallback(
     async (prompt: string) => {
@@ -252,6 +297,7 @@ function ChatPage() {
         messages={messages}
         isLoading={isSendingMessage}
         onRetry={handleRetry}
+        onGenerateImage={handleGenerateImageForMessage}
       />
       <ChatInput
         value={inputValue}
