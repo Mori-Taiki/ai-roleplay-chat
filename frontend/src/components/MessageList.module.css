@@ -8,7 +8,6 @@
     background-color: #d5e2e5; /* チャット背景色 (例) */
     border: 1px solid #ccc;
     margin-bottom: 1rem;
-    height: 400px; /* ★ 高さを固定するか、親要素に依存させる */
   }
   
   /* MessageItem からインポートするか、ここに定義 */

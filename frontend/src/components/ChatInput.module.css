@@ -1,21 +1,29 @@
 /* src/components/ChatInput.module.css */
 .inputArea {
     display: flex;
-    align-items: center;
-    padding: 0.5rem 1rem;
+    align-items: flex-end; /* ★ 下揃えに変更 (textareaの高さが変わるため) */
+    padding: 0.75rem 1rem;
     border-top: 1px solid #ccc;
-    background-color: #f0f0f0; /* 入力エリアの背景色 */
-  }
+    background-color: #f8f9fa;
+    gap: 0.5rem; /* ★ 要素間のgapを追加 */
+}
   
-  .input {
-    flex-grow: 1; /* 利用可能なスペースを埋める */
-    padding: 0.6rem 0.8rem;
-    border: 1px solid #ccc;
-    border-radius: 20px; /* 角を丸くする */
-    margin-right: 0.5rem;
-    font-size: 1rem;
-  }
-  
-  .imageButton {
-    margin-left: 0.5rem; /* 画像生成ボタンとの間隔 */
-  }
+/* ★ .input を .textarea に変更し、スタイルを調整 */
+.textarea {
+  flex-grow: 1;
+  padding: 0.6rem 0.8rem;
+  border: 1px solid #ccc;
+  border-radius: 20px;
+  font-size: 1rem;
+  font-family: inherit; /* フォントを親から継承 */
+  line-height: 1.4; /* 行の高さを調整 */
+  max-height: 200px; /* ★ 高くなりすぎないように最大値を設定 */
+  min-height: 24px; /* ★ 最小の高さを設定 */
+  overflow-y: auto; /* ★ max-heightを超えたらスクロールバーを表示 */
+  resize: none; /* ★ ユーザーによるリサイズを無効化 */
+  box-sizing: border-box;
+}
+
+.sendButton {
+  flex-shrink: 0; /* ★ ボタンが縮まないようにする */
+}

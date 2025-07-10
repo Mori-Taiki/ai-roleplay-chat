@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useReducer } from 'react';
+import { useState, useEffect, useCallback, useReducer } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useChatApi } from '../hooks/useChatApi';
 import { useCharacterProfile } from '../hooks/useCharacterProfile';
@@ -254,12 +254,6 @@ function ChatPage() {
     [isLoading, characterId, sendMessage, currentSessionId, generateAndUploadImage]
   );
 
-  const handleKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
-    if (event.key === 'Enter' && !isLoading) {
-      handleSendMessage(inputValue);
-    }
-  };
-
   if (characterFetchError) {
     return (
       <div className={styles.pageContainer}>
@@ -301,9 +295,8 @@ function ChatPage() {
       />
       <ChatInput
         value={inputValue}
-        onChange={(e) => setInputValue(e.target.value)}
+        onChange={setInputValue}
         onSendMessage={() => handleSendMessage(inputValue)}
-        onKeyDown={handleKeyDown}
         isLoading={isLoading}
       />
     </div>
