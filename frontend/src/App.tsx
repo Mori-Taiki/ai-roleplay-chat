@@ -16,7 +16,6 @@ const AppLayout: React.FC = () => {
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
-        padding: '0.5rem 1.5rem',
         borderBottom: '1px solid #eee',
         marginBottom: '1rem'
       }}>
@@ -33,7 +32,7 @@ const AppLayout: React.FC = () => {
       </nav>
 
       {/* ページごとのコンテンツがここに表示される */}
-      <main style={{ padding: '0 1.5rem' }}>
+      <main>
         <Outlet /> {/* react-router-dom v6 の機能 */}
       </main>
 

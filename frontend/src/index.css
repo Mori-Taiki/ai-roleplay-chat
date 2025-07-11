@@ -15,12 +15,26 @@
 
 body {
   margin: 0;
-  /* display: flex; */
-  /* place-items: center; */
   min-width: 320px;
   min-height: 100vh;
-  padding-left: 5%;
-  padding-right: 5%;
+  box-sizing: border-box;
+  padding-left: 0.5rem;
+  padding-right: 0.5rem;
+
+}
+
+@media (min-width: 768px) {
+  body {
+    padding-left: 5%;
+    padding-right: 5%;
+  }
+}
+
+@media (min-width: 1400px) {
+  body {
+    padding-left: 15%;
+    padding-right: 15%;
+  }
 }
 
 
