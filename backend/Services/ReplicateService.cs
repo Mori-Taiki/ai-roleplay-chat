@@ -51,7 +51,7 @@ public class ReplicateService : IImagenService
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
         _apiKey = configuration["REPLICATE_API_TOKEN"] ?? throw new InvalidOperationException("Configuration missing: REPLICATE_API_TOKEN");
-        _modelVersion = "6afe2e6b27dad2d6f480b59195c221884b6acc589ff4d05ff0e5fc058690fbb9";
+        _modelVersion = "0fc0fa9885b284901a6f9c0b4d67701fd7647d157b88371427d63f8089ce140e";
 
         // 推奨ネガティブプロンプトを設定
         _negativePrompt = "lowres, (bad), text, error, fewer, extra, missing, worst quality, jpeg artifacts, low quality, watermark, unfinished, displeasing, oldest, early, chromatic aberration, signature, extra digits, artistic error, username, scan, [abstract]";
