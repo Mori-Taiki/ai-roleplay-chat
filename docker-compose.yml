@@ -13,8 +13,7 @@ services:
     init: true
 
   frontend:
-    # 修正点: イメージタグを '0-20-bookworm' から '20-bookworm' に変更
-    image: mcr.microsoft.com/devcontainers/javascript-node:20-bookworm
+    image: node:20-bookworm
     command: /bin/sh -c "while sleep 1000; do; done"
     volumes:
       - ./frontend:/workspace/frontend:cached
