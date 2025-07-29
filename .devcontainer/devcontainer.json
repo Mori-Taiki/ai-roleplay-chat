@@ -1,0 +1,45 @@
+{
+  "name": "AI Roleplay Chat Dev Environment",
+  "dockerComposeFile": [
+    "../docker-compose.yml"
+  ],
+  "service": "backend",
+  "workspaceFolder": "/workspace",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-dotnettools.csdevkit",
+        "ms-azuretools.azure-cli",
+        "ms-vscode.azure-account",
+        "ms-azuretools.vscode-azureappservice",
+        "ms-azuretools.vscode-bicep",
+        "ms-azuretools.vscode-docker",
+        "humao.rest-client",
+        "esbenp.prettier-vscode",
+        "dbaeumer.vscode-eslint",
+        "Google.gemini-code-assist"
+      ]
+    }
+  },
+  "forwardPorts": [
+    7000,
+    5129,
+    5173
+  ],
+  "portsAttributes": {
+    "7000": {
+      "label": "Backend HTTPS",
+      "protocol": "https"
+    },
+    "5129": {
+      "label": "Backend HTTP",
+      "protocol": "http"
+    },
+    "5173": {
+      "label": "Frontend Vite",
+      "protocol": "http"
+    }
+  },
+  "postCreateCommand": "cd /workspace/frontend && npm install",
+  "remoteUser": "vscode"
+}

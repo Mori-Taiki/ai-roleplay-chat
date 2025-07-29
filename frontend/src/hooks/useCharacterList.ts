@@ -5,8 +5,6 @@ import { CharacterProfileWithSessionInfoResponse } from '../models/CharacterProf
 import { getApiErrorMessage, getGenericErrorMessage } from '../utils/errorHandler';
 import { useAuth } from './useAuth';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://localhost:7000';
-
 interface UseCharacterListReturn {
   characters: CharacterProfileWithSessionInfoResponse[];
   isLoading: boolean;
@@ -38,7 +36,7 @@ export const useCharacterList = (): UseCharacterListReturn => {
     setError(null);
     try {
       // ★ GET /api/characterprofiles を呼び出す
-      const response = await fetch(`${API_BASE_URL}/api/characterprofiles`, {
+      const response = await fetch(`/api/characterprofiles`, {
         headers: { Authorization: `Bearer ${accessToken}` },
       });
       if (!response.ok) {

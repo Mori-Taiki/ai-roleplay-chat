@@ -5,8 +5,6 @@ import { UpdateCharacterProfileRequest } from '../models/UpdateCharacterProfileR
 import { getApiErrorMessage, getGenericErrorMessage } from '../utils/errorHandler';
 import { useAuth } from './useAuth';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://localhost:7000';
-
 interface UseCharacterProfileReturn {
   character: CharacterProfileResponse | null;
   isLoading: boolean;
@@ -36,7 +34,7 @@ export const useCharacterProfile = (): UseCharacterProfileReturn => {
       setIsLoading(true);
       setError(null);
       try {
-        const response = await fetch(`${API_BASE_URL}/api/characterprofiles/${id}`, {
+        const response = await fetch(`/api/characterprofiles/${id}`, {
           headers: { Authorization: `Bearer ${accessToken}` },
         });
         if (!response.ok) {
@@ -67,7 +65,7 @@ export const useCharacterProfile = (): UseCharacterProfileReturn => {
       setIsSubmitting(true);
       setSubmitError(null);
       try {
-        const response = await fetch(`${API_BASE_URL}/api/characterprofiles`, {
+        const response = await fetch(`/api/characterprofiles`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -101,7 +99,7 @@ export const useCharacterProfile = (): UseCharacterProfileReturn => {
       setIsSubmitting(true);
       setSubmitError(null);
       try {
-        const response = await fetch(`${API_BASE_URL}/api/characterprofiles/${id}`, {
+        const response = await fetch(`/api/characterprofiles/${id}`, {
           method: 'PUT',
           headers: {
             'Content-Type': 'application/json',
@@ -134,7 +132,7 @@ export const useCharacterProfile = (): UseCharacterProfileReturn => {
       setIsSubmitting(true);
       setSubmitError(null);
       try {
-        const response = await fetch(`${API_BASE_URL}/api/characterprofiles/${id}`, {
+        const response = await fetch(`/api/characterprofiles/${id}`, {
           method: 'DELETE',
           headers: { Authorization: `Bearer ${accessToken}` },
         });

@@ -4,8 +4,6 @@ import { ChatResponse } from '../models/ChatResponse';
 import { Message } from '../models/Message';
 import { useAuth } from './useAuth';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://localhost:7000'; // 環境変数推奨
-
 interface UseChatApiReturn {
   isSendingMessage: boolean;
   isGeneratingImage: boolean;
@@ -50,7 +48,7 @@ export const useChatApi = (): UseChatApiReturn => {
           CharacterProfileId: characterId,
           SessionId: sessionId,
         };
-        const response = await fetch(`${API_BASE_URL}/api/chat`, {
+        const response = await fetch(`/api/chat`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
           body: JSON.stringify(requestBody),
@@ -83,7 +81,7 @@ export const useChatApi = (): UseChatApiReturn => {
       try {
         const requestBody = { MessageId: messageId };
         // ★ 新しいエンドポイントを呼び出す
-        const response = await fetch(`${API_BASE_URL}/api/image/generate-and-upload`, {
+        const response = await fetch(`/api/image/generate-and-upload`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
           body: JSON.stringify(requestBody),
@@ -114,7 +112,7 @@ export const useChatApi = (): UseChatApiReturn => {
       setIsLoadingHistory(true);
       setError(null);
       try {
-        const response = await fetch(`${API_BASE_URL}/api/chat/history?sessionId=${encodeURIComponent(sessionId)}`, {
+        const response = await fetch(`/api/chat/history?sessionId=${encodeURIComponent(sessionId)}`, {
           headers: {
             Authorization: `Bearer ${accessToken}`,
           },
@@ -152,7 +150,7 @@ export const useChatApi = (): UseChatApiReturn => {
       setIsLoadingLatestSession(true);
       setError(null);
       try {
-        const response = await fetch(`${API_BASE_URL}/api/chat/sessions/latest?characterId=${characterId}`, {
+        const response = await fetch(`/api/chat/sessions/latest?characterId=${characterId}`, {
           headers: {
             Authorization: `Bearer ${accessToken}`, // ★ ヘッダーに追加
           },

@@ -3,8 +3,6 @@ import { useCallback } from 'react';
 import { useAuth } from './useAuth'; // 認証フック
 import { getApiErrorMessage, getGenericErrorMessage } from '../utils/errorHandler'; // エラーハンドラ
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://localhost:7000';
-
 // フックが返すオブジェクトの型 (将来的に他の関数を追加する可能性も考慮)
 interface SessionApiHook {
   deleteSession: (sessionId: string) => Promise<void>;
@@ -25,7 +23,7 @@ export const useSessionApi = (): SessionApiHook => {
 
     try {
       // ★ 正しいエンドポイント /api/sessions/{sessionId} を指定
-      const response = await fetch(`${API_BASE_URL}/api/sessions/${sessionId}`, {
+      const response = await fetch(`/api/sessions/${sessionId}`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${accessToken}`,
