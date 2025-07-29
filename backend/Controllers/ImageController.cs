@@ -94,7 +94,7 @@ public class ImageController : BaseApiController // ★ ControllerBaseからBase
         string englishPrompt;
         try
         {
-            englishPrompt = await _geminiService.GenerateImagePromptAsync(character, history, cancellationToken);
+            englishPrompt = await _geminiService.GenerateImagePromptAsync(character, history, appUserId, cancellationToken);
             _logger.LogInformation("Generated image prompt for MessageId {MessageId}: '{Prompt}'", request.MessageId, englishPrompt);
         }
         catch (Exception ex)
@@ -104,7 +104,7 @@ public class ImageController : BaseApiController // ★ ControllerBaseからBase
         }
 
         // 4. 画像生成サービスを呼び出し
-        var generationResult = await _imagenService.GenerateImageAsync(englishPrompt, cancellationToken);
+        var generationResult = await _imagenService.GenerateImageAsync(englishPrompt, appUserId, cancellationToken);
         if (generationResult is not { ImageBytes: not null, MimeType: not null })
         {
             return Problem("画像データの生成に失敗しました。");
