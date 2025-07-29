@@ -38,19 +38,21 @@ public class ReplicateService : IImagenService
     // --- クラスのフィールド ---
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly ILogger<ReplicateService> _logger; // Loggerを追加
-    private readonly string _apiKey;
+    private readonly IApiKeyService _apiKeyService;
+    private readonly string _defaultApiKey;
     private readonly string _modelVersion;
     private readonly string _apiUrl = "https://api.replicate.com/v1/predictions";
     private readonly JsonSerializerOptions _jsonSerializerOptions = new() { PropertyNameCaseInsensitive = true };
     private readonly string _negativePrompt;
 
 
-    public ReplicateService(IHttpClientFactory httpClientFactory, IConfiguration configuration, ILogger<ReplicateService> logger)
+    public ReplicateService(IHttpClientFactory httpClientFactory, IConfiguration configuration, ILogger<ReplicateService> logger, IApiKeyService apiKeyService)
     {
         _httpClientFactory = httpClientFactory ?? throw new ArgumentNullException(nameof(httpClientFactory));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        _apiKeyService = apiKeyService ?? throw new ArgumentNullException(nameof(apiKeyService));
 
-        _apiKey = configuration["REPLICATE_API_TOKEN"] ?? throw new InvalidOperationException("Configuration missing: REPLICATE_API_TOKEN");
+        _defaultApiKey = configuration["REPLICATE_API_TOKEN"] ?? throw new InvalidOperationException("Configuration missing: REPLICATE_API_TOKEN");
         _modelVersion = "0fc0fa9885b284901a6f9c0b4d67701fd7647d157b88371427d63f8089ce140e";
 
         // 推奨ネガティブプロンプトを設定
@@ -60,10 +62,21 @@ public class ReplicateService : IImagenService
     /// <summary>
     /// Replicateで画像を生成し、そのバイナリデータとMIMEタイプを返します。
     /// </summary>
-    public async Task<(byte[]? ImageBytes, string? MimeType)?> GenerateImageAsync(string prompt, CancellationToken cancellationToken = default)
+    public async Task<(byte[]? ImageBytes, string? MimeType)?> GenerateImageAsync(string prompt, int? userId = null, CancellationToken cancellationToken = default)
     {
+        // ユーザー専用APIキーを取得、なければデフォルトを使用
+        string apiKey = _defaultApiKey;
+        if (userId.HasValue)
+        {
+            var userApiKey = await _apiKeyService.GetApiKeyAsync(userId.Value, "Replicate");
+            if (!string.IsNullOrEmpty(userApiKey))
+            {
+                apiKey = userApiKey;
+            }
+        }
+
         var httpClient = _httpClientFactory.CreateClient();
-        httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", _apiKey);
+        httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
 
         string? pollingUrl = await StartPredictionAsync(httpClient, prompt, cancellationToken);
         if (string.IsNullOrEmpty(pollingUrl))

@@ -31,6 +31,9 @@ public class User
     [Column(TypeName = "DATETIME(6)")]
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 
+    [StringLength(500)]
+    public string? KeyVaultUri { get; set; }
+
     // 将来的に他のエンティティとのリレーションを追加する可能性
     // public virtual ICollection<CharacterProfile> CharacterProfiles { get; set; } = new List<CharacterProfile>();
     // public virtual ICollection<ChatSession> ChatSessions { get; set; } = new List<ChatSession>();
