@@ -3,25 +3,23 @@ services:
     build:
       context: .
       dockerfile: .devcontainer/Dockerfile
-    command: /bin/sh -c "while sleep 1000; do; done"
+    command: sleep infinity
     volumes:
       - .:/workspace:cached
     environment:
       - DOTNET_USE_POLLING_FILE_WATCHER=true # Required for hot reload in containers
     networks:
       - dev-network
-    init: true
 
   frontend:
     image: node:20-bookworm
-    command: /bin/sh -c "while sleep 1000; do; done"
+    command: tail -f /dev/null
     volumes:
       - ./frontend:/workspace/frontend:cached
       # Isolate node_modules to avoid host OS conflicts
       - /workspace/frontend/node_modules
     networks:
       - dev-network
-    init: true
 
 networks:
   dev-network:

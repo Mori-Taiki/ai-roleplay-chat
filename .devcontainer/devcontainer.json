@@ -10,7 +10,6 @@
       "extensions": [
         "ms-dotnettools.csdevkit",
         "ms-azuretools.azure-cli",
-        "ms-vscode.azure-account",
         "ms-azuretools.vscode-azureappservice",
         "ms-azuretools.vscode-bicep",
         "ms-azuretools.vscode-docker",
@@ -40,6 +39,7 @@
       "protocol": "http"
     }
   },
-  "postCreateCommand": "cd /workspace/frontend && npm install",
+  "postCreateCommand": "sudo npm install -g @google/gemini-cli && cd /workspace/frontend && npm install",
+  "postStartCommand": "dotnet run --project /workspace/backend & cd /workspace/frontend && npm run dev",
   "remoteUser": "vscode"
 }
