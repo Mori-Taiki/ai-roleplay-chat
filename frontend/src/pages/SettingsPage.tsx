@@ -4,10 +4,6 @@ import { useApiKeys } from '../hooks/useApiKeys';
 import { useAuth } from '../hooks/useAuth';
 import styles from './SettingsPage.module.css';
 
-interface KeyVaultUriForm {
-  keyVaultUri: string;
-}
-
 interface ApiKeyForm {
   serviceName: string;
   apiKey: string;
@@ -19,24 +15,15 @@ const SettingsPage: React.FC = () => {
   const { isAuthenticated } = useAuth();
   const {
     registeredServices,
-    keyVaultUri,
     isLoading,
     error,
     getUserApiKeys,
     registerApiKey,
     deleteApiKey,
-    setKeyVaultUri,
     clearError,
   } = useApiKeys();
 
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
-
-  // Key Vault URI form
-  const keyVaultForm = useForm<KeyVaultUriForm>({
-    defaultValues: {
-      keyVaultUri: '',
-    },
-  });
 
   // API Key form
   const apiKeyForm = useForm<ApiKeyForm>({
@@ -53,25 +40,9 @@ const SettingsPage: React.FC = () => {
     }
   }, [isAuthenticated, getUserApiKeys]);
 
-  // Update Key Vault URI form when data is loaded
-  useEffect(() => {
-    if (keyVaultUri) {
-      keyVaultForm.setValue('keyVaultUri', keyVaultUri);
-    }
-  }, [keyVaultUri, keyVaultForm]);
-
   const clearMessages = () => {
     setSuccessMessage(null);
     clearError();
-  };
-
-  const handleKeyVaultUriSubmit = async (data: KeyVaultUriForm) => {
-    clearMessages();
-    
-    const success = await setKeyVaultUri(data.keyVaultUri);
-    if (success) {
-      setSuccessMessage('Key Vault URIが正常に設定されました。');
-    }
   };
 
   const handleApiKeySubmit = async (data: ApiKeyForm) => {
@@ -130,51 +101,15 @@ const SettingsPage: React.FC = () => {
         </div>
       )}
 
-      {/* Key Vault URI Section */}
-      <section className={styles.section}>
-        <h2>Key Vault URI</h2>
-        <p className={styles.description}>
-          Azure Key Vaultのエンドポイントを設定します。設定後、APIキーはこのKey Vaultに安全に保存されます。
-        </p>
-        
-        <form onSubmit={keyVaultForm.handleSubmit(handleKeyVaultUriSubmit)} className={styles.form}>
-          <div className={styles.formField}>
-            <label htmlFor="keyVaultUri">Key Vault URI</label>
-            <input
-              id="keyVaultUri"
-              type="url"
-              placeholder="https://your-keyvault.vault.azure.net/"
-              {...keyVaultForm.register('keyVaultUri', {
-                required: 'Key Vault URIを入力してください',
-                pattern: {
-                  value: /^https:\/\/.*\.vault\.azure\.net\/?$/,
-                  message: '有効なAzure Key Vault URIを入力してください（例：https://your-keyvault.vault.azure.net/）'
-                }
-              })}
-              className={keyVaultForm.formState.errors.keyVaultUri ? styles.errorInput : ''}
-            />
-            {keyVaultForm.formState.errors.keyVaultUri && (
-              <span className={styles.fieldError}>
-                {keyVaultForm.formState.errors.keyVaultUri.message}
-              </span>
-            )}
-          </div>
-          
-          <button type="submit" disabled={isLoading} className={styles.primaryButton}>
-            Key Vault URIを設定
-          </button>
-        </form>
-      </section>
-
       {/* Current Status Section */}
       <section className={styles.section}>
         <h2>現在の設定状況</h2>
         
         <div className={styles.statusGrid}>
           <div className={styles.statusItem}>
-            <strong>Key Vault URI:</strong>
-            <span className={keyVaultUri ? styles.statusActive : styles.statusInactive}>
-              {keyVaultUri || '未設定'}
+            <strong>Key Vault:</strong>
+            <span className={styles.statusActive}>
+              システムで設定済み
             </span>
           </div>
           
@@ -202,7 +137,7 @@ const SettingsPage: React.FC = () => {
       <section className={styles.section}>
         <h2>APIキーの登録</h2>
         <p className={styles.description}>
-          外部サービスのAPIキーを登録します。キーは設定したKey Vaultに安全に保存されます。
+          外部サービスのAPIキーを登録します。キーはシステムで設定されたKey Vaultに安全に保存されます。
         </p>
         
         <form onSubmit={apiKeyForm.handleSubmit(handleApiKeySubmit)} className={styles.form}>
