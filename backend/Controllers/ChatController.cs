@@ -151,6 +151,7 @@ public class ChatController : BaseApiController
                 request.Prompt,
                 SystemPromptHelper.AppendImageInstruction(character.SystemPrompt ?? SystemPromptHelper.GenerateDefaultPrompt(character.Name, character.Personality, character.Tone, character.Backstory)),
                 history,
+                appUserId,
                 cancellationToken
              );
             _logger.LogInformation("Gemini response received for session {SessionId}", session.Id);

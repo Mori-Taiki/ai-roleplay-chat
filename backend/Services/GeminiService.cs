@@ -8,17 +8,19 @@ public class GeminiService : IGeminiService // IGeminiService インターフェ
 {
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly IConfiguration _config;
-    private readonly string _apiKey; // APIキーを保持 (コンストラクタで必須チェック)
+    private readonly IApiKeyService _apiKeyService;
+    private readonly string _defaultApiKey; // システム用デフォルトAPIキーを保持 (コンストラクタで必須チェック)
     private readonly JsonSerializerOptions _jsonSerializerOptions; // JSON設定を保持
 
     // コンストラクタで HttpClientFactory と IConfiguration を受け取る
-    public GeminiService(IHttpClientFactory httpClientFactory, IConfiguration configuration)
+    public GeminiService(IHttpClientFactory httpClientFactory, IConfiguration configuration, IApiKeyService apiKeyService)
     {
         _httpClientFactory = httpClientFactory ?? throw new ArgumentNullException(nameof(httpClientFactory));
         _config = configuration ?? throw new ArgumentNullException(nameof(configuration));
+        _apiKeyService = apiKeyService ?? throw new ArgumentNullException(nameof(apiKeyService));
 
         // APIキーはサービス生成時にチェック（設定がなければ起動時にエラーにする）
-        _apiKey = _config["Gemini:ApiKey"] ?? throw new InvalidOperationException("Configuration missing: Gemini:ApiKey");
+        _defaultApiKey = _config["Gemini:ApiKey"] ?? throw new InvalidOperationException("Configuration missing: Gemini:ApiKey");
 
         // JSONシリアライザのオプション (Program.cs で設定したものと同様の設定が望ましい)
         _jsonSerializerOptions = new JsonSerializerOptions
@@ -31,7 +33,7 @@ public class GeminiService : IGeminiService // IGeminiService インターフェ
     /// <summary>
     /// 指定されたプロンプトに対するチャット応答を生成します。
     /// </summary>
-    public async Task<string> GenerateChatResponseAsync(string prompt, string systemPrompt, List<ChatMessage> history, CancellationToken cancellationToken = default)
+    public async Task<string> GenerateChatResponseAsync(string prompt, string systemPrompt, List<ChatMessage> history, int? userId = null, CancellationToken cancellationToken = default)
     {
         // 設定ファイルからチャット用の設定を読み込む
         var model = _config["Gemini:ChatModel"] ?? "gemini-1.5-flash-latest";
@@ -44,14 +46,25 @@ public class GeminiService : IGeminiService // IGeminiService インターフェ
         const int MaxHistoryCount = 30;
 
         // 共通メソッドを呼び出す
-        return await CallGeminiApiAsync(model, prompt, systemPrompt, history, MaxHistoryCount, generationConfig, cancellationToken);
+        return await CallGeminiApiAsync(model, prompt, systemPrompt, history, MaxHistoryCount, generationConfig, userId, cancellationToken);
     }
 
     // --- Gemini API を呼び出す共通プライベートメソッド ---
-    private async Task<string> CallGeminiApiAsync(string modelName, string promptText, string? systemPrompt, List<ChatMessage> history, int MaxHistoryCount, GeminiGenerationConfig generationConfig, CancellationToken cancellationToken)
+    private async Task<string> CallGeminiApiAsync(string modelName, string promptText, string? systemPrompt, List<ChatMessage> history, int MaxHistoryCount, GeminiGenerationConfig generationConfig, int? userId, CancellationToken cancellationToken)
     {
+        // ユーザー専用APIキーを取得、なければデフォルトを使用
+        string apiKey = _defaultApiKey;
+        if (userId.HasValue)
+        {
+            var userApiKey = await _apiKeyService.GetApiKeyAsync(userId.Value, "Gemini");
+            if (!string.IsNullOrEmpty(userApiKey))
+            {
+                apiKey = userApiKey;
+            }
+        }
+
         // APIキーはコンストラクタで取得・チェック済み
-        var geminiApiUrl = $"https://generativelanguage.googleapis.com/v1beta/models/{modelName}:generateContent?key={_apiKey}";
+        var geminiApiUrl = $"https://generativelanguage.googleapis.com/v1beta/models/{modelName}:generateContent?key={apiKey}";
         var httpClient = _httpClientFactory.CreateClient(); // HttpClientを取得
 
         // --- ★ Contents 配列の構築 (履歴を考慮) ---
@@ -152,6 +165,7 @@ public class GeminiService : IGeminiService // IGeminiService インターフェ
     public async Task<string> GenerateImagePromptAsync(
         CharacterProfile character,
         List<ChatMessage> history,
+        int? userId = null,
         CancellationToken cancellationToken = default)
     {
         var model = _config["Gemini:TranslationModel"] ?? "gemini-1.5-flash-latest";
@@ -196,6 +210,6 @@ public class GeminiService : IGeminiService // IGeminiService インターフェ
 
         // CallGeminiApiAsyncを呼び出す
         // systemPromptとして新しい指示を渡し、ユーザープロンプトは空でOK
-        return await CallGeminiApiAsync(model, "", imagePromptInstruction, history, MaxHistoryCount, generationConfig, cancellationToken);
+        return await CallGeminiApiAsync(model, "", imagePromptInstruction, history, MaxHistoryCount, generationConfig, userId, cancellationToken);
     }
 }

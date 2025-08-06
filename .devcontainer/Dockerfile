@@ -1,6 +1,6 @@
 # Use the official Microsoft image for .NET SDK.
 # This provides a consistent environment for building and running the backend.
-FROM mcr.microsoft.com/devcontainers/dotnet:1-9.0
+FROM mcr.microsoft.com/devcontainers/dotnet:1-8.0
 
 # The dev container user, 'vscode', is created by the base image.
 # No need to create it again.
