@@ -20,5 +20,4 @@ public class SetKeyVaultUriRequest
 public class UserApiKeysResponse
 {
     public List<string> RegisteredServices { get; set; } = new();
-    public string? KeyVaultUri { get; set; }
 }

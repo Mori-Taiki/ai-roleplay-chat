@@ -6,6 +6,7 @@ import './index.css'; // または App.css
 import ChatPage from './pages/ChatPage';
 import CharacterListPage from './pages/CharacterListPage';
 import CharacterSetupPage from './pages/CharacterSetupPage';
+import SettingsPage from './pages/SettingsPage';
 import { AuthStatus } from './components/AuthStatus'; // AuthStatus をインポート
 
 const AppLayout: React.FC = () => {
@@ -24,6 +25,7 @@ const AppLayout: React.FC = () => {
           {/* <li><Link to="/">ホーム (仮)</Link></li> */} {/* 必要ならホームへのリンク */}
           <li><Link to="/characters">キャラクター一覧</Link></li>
           <li><Link to="/characters/new">新規キャラクター作成</Link></li>
+          <li><Link to="/settings">設定</Link></li>
           {/* 他に共通リンクがあればここに追加 */}
         </ul>
 
@@ -52,6 +54,7 @@ function App() {
           <Route path="characters/new" element={<CharacterSetupPage />} />
           <Route path="characters/edit/:id" element={<CharacterSetupPage />} />
           <Route path="chat/:id" element={<ChatPage />} />
+          <Route path="settings" element={<SettingsPage />} />
 
           {/* 404 Not Found ページ */}
           <Route

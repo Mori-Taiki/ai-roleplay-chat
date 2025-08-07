@@ -35,6 +35,6 @@
     }
   },
   "postCreateCommand": "sudo npm install -g @google/gemini-cli && cd /workspace/frontend && npm install",
-  "postStartCommand": "cd /workspaces/ai-roleplay-chat/backend && dotnet run & cd /workspaces/ai-roleplay-chat/frontend && npm run dev",
+  // "postStartCommand": "cd /workspaces/ai-roleplay-chat/backend && dotnet run & cd /workspaces/ai-roleplay-chat/frontend && npm run dev",
   "remoteUser": "vscode"
 }

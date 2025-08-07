@@ -93,42 +93,8 @@ public class ApiKeyController : BaseApiController
         }
     }
 
-    /// <summary>
-    /// ユーザーのKey Vault URIを設定します
-    /// </summary>
-    [HttpPost("keyvault-uri")]
-    public async Task<ActionResult> SetKeyVaultUri([FromBody] SetKeyVaultUriRequest request, CancellationToken cancellationToken = default)
-    {
-        var (userId, errorResult) = await GetCurrentAppUserIdAsync(cancellationToken);
-        if (errorResult != null) return errorResult;
-
-        if (string.IsNullOrWhiteSpace(request.KeyVaultUri))
-        {
-            return BadRequest("KeyVaultUri is required.");
-        }
-
-        // URIの形式をチェック
-        if (!Uri.TryCreate(request.KeyVaultUri, UriKind.Absolute, out var uri) || 
-            !uri.Host.EndsWith(".vault.azure.net"))
-        {
-            return BadRequest("Invalid Key Vault URI format.");
-        }
-
-        var success = await _apiKeyService.SetUserKeyVaultUriAsync(userId!.Value, request.KeyVaultUri);
-        
-        if (success)
-        {
-            _logger.LogInformation("Key Vault URI set successfully for user {UserId}", userId);
-            return Ok(new { Message = "Key Vault URI set successfully." });
-        }
-        else
-        {
-            return StatusCode(StatusCodes.Status500InternalServerError, "Failed to set Key Vault URI.");
-        }
-    }
-
-    /// <summary>
-    /// ユーザーの登録済みサービス一覧とKey Vault URIを取得します
+        /// <summary>
+    /// ユーザーの登録済みサービス一覧を取得します
     /// </summary>
     [HttpGet]
     public async Task<ActionResult<UserApiKeysResponse>> GetUserApiKeys(CancellationToken cancellationToken = default)
@@ -138,15 +104,9 @@ public class ApiKeyController : BaseApiController
 
         var services = await _apiKeyService.GetUserRegisteredServicesAsync(userId!.Value);
         
-        // ユーザーのKey Vault URIも取得
-        using var scope = HttpContext.RequestServices.CreateScope();
-        var context = scope.ServiceProvider.GetRequiredService<Data.AppDbContext>();
-        var user = await context.Users.FindAsync(userId.Value);
-        
         return Ok(new UserApiKeysResponse
         {
             RegisteredServices = services,
-            KeyVaultUri = user?.KeyVaultUri
         });
     }
 }
