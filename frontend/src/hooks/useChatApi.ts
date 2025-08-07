@@ -149,8 +149,9 @@ export const useChatApi = (): UseChatApiReturn => {
 
       setIsLoadingLatestSession(true);
       setError(null);
+      const baseUrl = import.meta.env.VITE_API_URL || '';
       try {
-        const response = await fetch(`/api/chat/sessions/latest?characterId=${characterId}`, {
+        const response = await fetch(`${baseUrl}/api/chat/sessions/latest?characterId=${characterId}`, {
           headers: {
             Authorization: `Bearer ${accessToken}`, // ★ ヘッダーに追加
           },

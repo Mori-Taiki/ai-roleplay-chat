@@ -22,8 +22,9 @@ export const useSessionApi = (): SessionApiHook => {
     console.log(`Attempting to delete session: ${sessionId}`); // デバッグログ
 
     try {
+      const baseUrl = import.meta.env.VITE_API_URL || '';
       // ★ 正しいエンドポイント /api/sessions/{sessionId} を指定
-      const response = await fetch(`/api/sessions/${sessionId}`, {
+      const response = await fetch(`${baseUrl}/api/sessions/${sessionId}`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${accessToken}`,

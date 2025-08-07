@@ -33,8 +33,9 @@ export const useCharacterProfile = (): UseCharacterProfileReturn => {
 
       setIsLoading(true);
       setError(null);
+      const baseUrl = import.meta.env.VITE_API_URL || '';
       try {
-        const response = await fetch(`/api/characterprofiles/${id}`, {
+        const response = await fetch(`${baseUrl}/api/characterprofiles/${id}`, {
           headers: { Authorization: `Bearer ${accessToken}` },
         });
         if (!response.ok) {
@@ -64,8 +65,9 @@ export const useCharacterProfile = (): UseCharacterProfileReturn => {
 
       setIsSubmitting(true);
       setSubmitError(null);
+      const baseUrl = import.meta.env.VITE_API_URL || '';
       try {
-        const response = await fetch(`/api/characterprofiles`, {
+        const response = await fetch(`${baseUrl}/api/characterprofiles`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -98,8 +100,9 @@ export const useCharacterProfile = (): UseCharacterProfileReturn => {
 
       setIsSubmitting(true);
       setSubmitError(null);
+      const baseUrl = import.meta.env.VITE_API_URL || '';
       try {
-        const response = await fetch(`/api/characterprofiles/${id}`, {
+        const response = await fetch(`${baseUrl}/api/characterprofiles/${id}`, {
           method: 'PUT',
           headers: {
             'Content-Type': 'application/json',
@@ -131,8 +134,9 @@ export const useCharacterProfile = (): UseCharacterProfileReturn => {
 
       setIsSubmitting(true);
       setSubmitError(null);
+      const baseUrl = import.meta.env.VITE_API_URL || '';
       try {
-        const response = await fetch(`/api/characterprofiles/${id}`, {
+        const response = await fetch(`${baseUrl}/api/characterprofiles/${id}`, {
           method: 'DELETE',
           headers: { Authorization: `Bearer ${accessToken}` },
         });

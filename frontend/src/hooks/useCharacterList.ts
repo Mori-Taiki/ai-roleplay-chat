@@ -35,8 +35,9 @@ export const useCharacterList = (): UseCharacterListReturn => {
     setIsLoading(true);
     setError(null);
     try {
+      const baseUrl = import.meta.env.VITE_API_URL || '';
       // ★ GET /api/characterprofiles を呼び出す
-      const response = await fetch(`/api/characterprofiles`, {
+      const response = await fetch(`${baseUrl}/api/characterprofiles`, {
         headers: { Authorization: `Bearer ${accessToken}` },
       });
       if (!response.ok) {

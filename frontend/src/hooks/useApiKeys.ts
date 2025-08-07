@@ -48,7 +48,8 @@ export const useApiKeys = (): UseApiKeysResult => {
       throw new Error('認証トークンの取得に失敗しました');
     }
 
-    const response = await fetch(url, {
+    const baseUrl = import.meta.env.VITE_API_URL || '';
+    const response = await fetch(`${baseUrl}` + url, {
       ...options,
       headers: {
         'Authorization': `Bearer ${token}`,
