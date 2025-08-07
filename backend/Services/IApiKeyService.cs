@@ -27,17 +27,6 @@ public interface IApiKeyService
     /// <returns>削除成功時はtrue</returns>
     Task<bool> DeleteApiKeyAsync(int userId, string serviceName);
 
-    /// <summary>
-    /// ユーザーのKey Vault URIを設定します
-    /// </summary>
-    /// <param name="userId">ユーザーID</param>
-    /// <param name="keyVaultUri">Key Vault URI</param>
-    /// <returns>設定成功時はtrue</returns>
-    Task<bool> SetUserKeyVaultUriAsync(int userId, string keyVaultUri);
-
-    /// <summary>
-    /// ユーザーが登録したサービス一覧を取得します
-    /// </summary>
     /// <param name="userId">ユーザーID</param>
     /// <returns>サービス名の一覧</returns>
     Task<List<string>> GetUserRegisteredServicesAsync(int userId);

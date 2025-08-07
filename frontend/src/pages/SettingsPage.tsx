@@ -106,13 +106,6 @@ const SettingsPage: React.FC = () => {
         <h2>現在の設定状況</h2>
         
         <div className={styles.statusGrid}>
-          <div className={styles.statusItem}>
-            <strong>Key Vault:</strong>
-            <span className={styles.statusActive}>
-              システムで設定済み
-            </span>
-          </div>
-          
           {SUPPORTED_SERVICES.map((service) => (
             <div key={service} className={styles.statusItem}>
               <strong>{service} API Key:</strong>
