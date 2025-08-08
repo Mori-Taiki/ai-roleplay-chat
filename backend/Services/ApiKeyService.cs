@@ -124,8 +124,10 @@ public class ApiKeyService : IApiKeyService
             {
                 if (secretProperties.Name.StartsWith(prefix) && secretProperties.Name.EndsWith(suffix))
                 {
-                    var serviceName = secretProperties.Name
+                    var serviceNameRaw = secretProperties.Name
                         .Substring(prefix.Length, secretProperties.Name.Length - prefix.Length - suffix.Length);
+                    // 最初の文字を大文字に変換して、フロントエンドの期待値と一致させる
+                    var serviceName = char.ToUpperInvariant(serviceNameRaw[0]) + serviceNameRaw.Substring(1);
                     services.Add(serviceName);
                 }
             }
