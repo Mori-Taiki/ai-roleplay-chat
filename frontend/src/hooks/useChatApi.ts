@@ -12,7 +12,7 @@ interface UseChatApiReturn {
     prompt: string,
     sessionId: string | null
   ) => Promise<ChatResponse | null>; // ★ 戻り値の型を更新
-  generateAndUploadImage: (messageId: number) => Promise<ImageUploadResponse | null>; 
+  generateAndUploadImage: (messageId: number) => Promise<ImageUploadResponse | null>;
   isLoadingHistory: boolean;
   fetchHistory: (sessionId: string) => Promise<Message[] | null>;
   isLoadingLatestSession: boolean;
@@ -37,18 +37,19 @@ export const useChatApi = (): UseChatApiReturn => {
       prompt: string,
       sessionId: string | null,
     ): Promise<ChatResponse | null> => {
-      const accessToken = await acquireToken(); 
+      const accessToken = await acquireToken();
       if (!accessToken) return null; // ★ トークンなければ中断
 
       setIsSendingMessage(true);
       setError(null);
       try {
+        const baseUrl = import.meta.env.VITE_API_URL || '';
         const requestBody = {
           Prompt: prompt,
           CharacterProfileId: characterId,
           SessionId: sessionId,
         };
-        const response = await fetch(`/api/chat`, {
+        const response = await fetch(`${baseUrl}/api/chat`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
           body: JSON.stringify(requestBody),
@@ -73,15 +74,16 @@ export const useChatApi = (): UseChatApiReturn => {
 
   const generateAndUploadImage = useCallback(
     async (messageId: number): Promise<ImageUploadResponse | null> => {
-      const accessToken = await acquireToken(); 
+      const accessToken = await acquireToken();
       if (!accessToken) return null;
 
       setIsGeneratingImage(true);
       setError(null);
       try {
+        const baseUrl = import.meta.env.VITE_API_URL || '';
         const requestBody = { MessageId: messageId };
         // ★ 新しいエンドポイントを呼び出す
-        const response = await fetch(`/api/image/generate-and-upload`, {
+        const response = await fetch(`${baseUrl}/api/image/generate-and-upload`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
           body: JSON.stringify(requestBody),
@@ -112,7 +114,8 @@ export const useChatApi = (): UseChatApiReturn => {
       setIsLoadingHistory(true);
       setError(null);
       try {
-        const response = await fetch(`/api/chat/history?sessionId=${encodeURIComponent(sessionId)}`, {
+        const baseUrl = import.meta.env.VITE_API_URL || '';
+        const response = await fetch(`${baseUrl}/api/chat/history?sessionId=${encodeURIComponent(sessionId)}`, {
           headers: {
             Authorization: `Bearer ${accessToken}`,
           },
