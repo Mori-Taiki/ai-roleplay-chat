@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import styles from './Notification.module.css';
 
 export interface NotificationProps {
@@ -12,24 +12,22 @@ export interface NotificationProps {
 const Notification: React.FC<NotificationProps> = ({ id, message, type, onClose, duration = 5000 }) => {
   const [isClosing, setIsClosing] = useState(false);
 
-  const handleClose = () => {
+  const handleClose = useCallback(() => {
     setIsClosing(true);
     setTimeout(() => {
       onClose(id);
     }, 300); // Animation duration
-  };
+  }, [id, onClose]);
 
   useEffect(() => {
     if (type !== 'loading') {
-      const timer = setTimeout(() => {
-        handleClose();
-      }, duration);
+      const timer = setTimeout(handleClose, duration);
 
       return () => {
         clearTimeout(timer);
       };
     }
-  }, [id, type, duration, onClose]);
+  }, [type, duration, handleClose]);
 
   return (
     <div className={`${styles.notification} ${styles[type]} ${isClosing ? styles.closing : ''}`}>

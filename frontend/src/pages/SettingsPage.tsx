@@ -22,15 +22,9 @@ const SUPPORTED_SERVICES = ['Gemini', 'Replicate'] as const;
 const SettingsPage: React.FC = () => {
   const { isAuthenticated } = useAuth();
   const { addNotification, removeNotification } = useNotification();
-  const {
-    settings,
-    isLoading,
-    error,
-    fetchUserSettings,
-    updateUserSettings,
-  } = useUserSettings();
+  const { settings, isLoading, error, fetchUserSettings, updateUserSettings } = useUserSettings();
 
-  const { 
+  const {
     registeredServices: registeredApiKeys,
     isLoading: isLoadingApiKeys,
     error: apiKeyError,
@@ -57,12 +51,17 @@ const SettingsPage: React.FC = () => {
   useEffect(() => {
     if (settings) {
       modelSettingsForm.reset({
-        geminiChatModel: settings.find(s => s.serviceType === 'Gemini' && s.settingKey === 'ChatModel')?.settingValue || '',
-        geminiImagePromptModel: settings.find(s => s.serviceType === 'Gemini' && s.settingKey === 'ImagePromptGenerationModel')?.settingValue || '',
-        replicateImageModel: settings.find(s => s.serviceType === 'Replicate' && s.settingKey === 'ImageGenerationVersion')?.settingValue || '',
+        geminiChatModel:
+          settings.find((s) => s.serviceType === 'Gemini' && s.settingKey === 'ChatModel')?.settingValue || '',
+        geminiImagePromptModel:
+          settings.find((s) => s.serviceType === 'Gemini' && s.settingKey === 'ImagePromptGenerationModel')
+            ?.settingValue || '',
+        replicateImageModel:
+          settings.find((s) => s.serviceType === 'Replicate' && s.settingKey === 'ImageGenerationVersion')
+            ?.settingValue || '',
       });
     }
-  }, [settings, modelSettingsForm.reset, modelSettingsForm]);
+  }, [settings, modelSettingsForm.reset]);
 
   useEffect(() => {
     let loadingNotificationId: string | null = null;
@@ -135,7 +134,7 @@ const SettingsPage: React.FC = () => {
   return (
     <div className={styles.container}>
       <h1>設定</h1>
-      
+
       <section className={styles.section}>
         <h2>APIキーの現在の設定状況</h2>
         <div className={styles.statusGrid}>
@@ -164,7 +163,7 @@ const SettingsPage: React.FC = () => {
         <p className={styles.description}>
           外部サービスのAPIキーを登録します。キーはシステムで設定されたKey Vaultに安全に保存されます。
         </p>
-        
+
         <form onSubmit={apiKeyForm.handleSubmit(handleApiKeySubmit)} className={styles.form}>
           <div className={styles.formField}>
             <label htmlFor="serviceName">サービス</label>
@@ -190,18 +189,16 @@ const SettingsPage: React.FC = () => {
                 required: 'APIキーを入力してください',
                 minLength: {
                   value: 10,
-                  message: 'APIキーは最低10文字以上である必要があります'
-                }
+                  message: 'APIキーは最低10文字以上である必要があります',
+                },
               })}
               className={apiKeyForm.formState.errors.apiKey ? styles.errorInput : ''}
             />
             {apiKeyForm.formState.errors.apiKey && (
-              <span className={styles.fieldError}>
-                {apiKeyForm.formState.errors.apiKey.message}
-              </span>
+              <span className={styles.fieldError}>{apiKeyForm.formState.errors.apiKey.message}</span>
             )}
           </div>
-          
+
           <button type="submit" disabled={isLoadingApiKeys} className={styles.primaryButton}>
             APIキーを登録
           </button>
@@ -213,7 +210,7 @@ const SettingsPage: React.FC = () => {
         <p className={styles.description}>
           各サービスで使用するAIモデルのIDやバージョンを指定します。空欄の場合はシステムのデフォルト値が使用されます。
         </p>
-        
+
         <form onSubmit={modelSettingsForm.handleSubmit(handleModelSettingsSubmit)} className={styles.form}>
           <div className={styles.formField}>
             <label htmlFor="geminiChatModel">Gemini (チャット用モデル)</label>
@@ -244,7 +241,7 @@ const SettingsPage: React.FC = () => {
               {...modelSettingsForm.register('replicateImageModel')}
             />
           </div>
-          
+
           <button type="submit" disabled={isLoading} className={styles.primaryButton}>
             モデル設定を保存
           </button>

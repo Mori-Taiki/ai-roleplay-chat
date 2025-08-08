@@ -37,16 +37,9 @@ public class GeminiService : IGeminiService // IGeminiService インターフェ
     /// </summary>
     public async Task<string> GenerateChatResponseAsync(string prompt, string systemPrompt, List<ChatMessage> history, int? userId = null, CancellationToken cancellationToken = default)
     {
-        var model = _config["Gemini:ChatModel"] ?? "gemini-1.5-flash-latest";
-        if (userId.HasValue)
-        {
-            var userSettings = await _userSettingsService.GetUserSettingsAsync(userId.Value);
-            var chatModelSetting = userSettings.FirstOrDefault(s => s.ServiceType == "Gemini" && s.SettingKey == "ChatModel");
-            if (chatModelSetting != null && !string.IsNullOrEmpty(chatModelSetting.SettingValue))
-            {
-                model = chatModelSetting.SettingValue;
-            }
-        }
+        var defaultModel = _config["Gemini:ChatModel"] ?? "gemini-1.5-flash-latest";
+        var model = await GetUserSpecificModelAsync(userId, "ChatModel", defaultModel);
+        
         var generationConfig = new GeminiGenerationConfig
         {
             Temperature = _config.GetValue<double?>("Gemini:DefaultTemperature") ?? 0.7,
@@ -178,16 +171,9 @@ public class GeminiService : IGeminiService // IGeminiService インターフェ
         int? userId = null,
         CancellationToken cancellationToken = default)
     {
-        var model = _config["Gemini:TranslationModel"] ?? "gemini-1.5-flash-latest";
-        if (userId.HasValue)
-        {
-            var userSettings = await _userSettingsService.GetUserSettingsAsync(userId.Value);
-            var imagePromptModelSetting = userSettings.FirstOrDefault(s => s.ServiceType == "Gemini" && s.SettingKey == "ImagePromptGenerationModel");
-            if (imagePromptModelSetting != null && !string.IsNullOrEmpty(imagePromptModelSetting.SettingValue))
-            {
-                model = imagePromptModelSetting.SettingValue;
-            }
-        }
+        var defaultModel = _config["Gemini:TranslationModel"] ?? "gemini-1.5-flash-latest";
+        var model = await GetUserSpecificModelAsync(userId, "ImagePromptGenerationModel", defaultModel);
+
         var generationConfig = new GeminiGenerationConfig
         {
             Temperature = _config.GetValue<double?>("Gemini:TranslationTemperature") ?? 0.4, // 少し創造性を上げる
@@ -230,5 +216,23 @@ public class GeminiService : IGeminiService // IGeminiService インターフェ
         // CallGeminiApiAsyncを呼び出す
         // systemPromptとして新しい指示を渡し、ユーザープロンプトは空でOK
         return await CallGeminiApiAsync(model, "", imagePromptInstruction, history, MaxHistoryCount, generationConfig, userId, cancellationToken);
+    }
+
+    private async Task<string> GetUserSpecificModelAsync(int? userId, string settingKey, string defaultValue)
+    {
+        if (!userId.HasValue)
+        {
+            return defaultValue;
+        }
+
+        var userSettings = await _userSettingsService.GetUserSettingsAsync(userId.Value);
+        var modelSetting = userSettings.FirstOrDefault(s => s.ServiceType == "Gemini" && s.SettingKey == settingKey);
+
+        if (modelSetting != null && !string.IsNullOrEmpty(modelSetting.SettingValue))
+        {
+            return modelSetting.SettingValue;
+        }
+
+        return defaultValue;
     }
 }

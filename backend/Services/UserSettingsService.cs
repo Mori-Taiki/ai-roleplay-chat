@@ -57,9 +57,17 @@ namespace AiRoleplayChat.Backend.Services
                     });
                 }
             }
-
-            await _context.SaveChangesAsync();
-            return true;
+            try
+            {
+                await _context.SaveChangesAsync();
+                return true;
+            }
+            catch (DbUpdateException ex)
+            {
+                // エラーログを出力
+                Console.Error.WriteLine($"Error updating user settings for user {userId}: {ex.Message}");
+                return false;
+            }
         }
     }
 }
