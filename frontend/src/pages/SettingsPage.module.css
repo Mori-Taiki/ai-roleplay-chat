@@ -171,6 +171,11 @@
   font-style: italic;
 }
 
+.apiKeyLink {
+  font-size: 0.875rem;
+  margin-top: 0.5rem;
+}
+
 @media (max-width: 768px) {
   .container {
     padding: 1rem;

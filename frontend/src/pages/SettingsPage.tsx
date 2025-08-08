@@ -139,22 +139,34 @@ const SettingsPage: React.FC = () => {
         <h2>APIキーの現在の設定状況</h2>
         <div className={styles.statusGrid}>
           {SUPPORTED_SERVICES.map((service) => (
-            <div key={service} className={styles.statusItem}>
-              <strong>{service} API Key:</strong>
-              <span className={registeredApiKeys.includes(service) ? styles.statusActive : styles.statusInactive}>
-                {registeredApiKeys.includes(service) ? '登録済み' : '未登録'}
-              </span>
-              {registeredApiKeys.includes(service) && (
-                <button
-                  onClick={() => handleDeleteApiKey(service)}
-                  disabled={isLoadingApiKeys}
-                  className={styles.dangerButton}
-                >
-                  削除
-                </button>
-              )}
+            <div key={service}>
+              <div className={styles.statusItem}>
+                <strong>{service} API Key:</strong>
+                <span className={registeredApiKeys.includes(service) ? styles.statusActive : styles.statusInactive}>
+                  {registeredApiKeys.includes(service) ? '登録済み' : '未登録'}
+                </span>
+                {registeredApiKeys.includes(service) && (
+                  <button
+                    onClick={() => handleDeleteApiKey(service)}
+                    disabled={isLoadingApiKeys}
+                    className={styles.dangerButton}
+                  >
+                    削除
+                  </button>
+                )}
+              </div>
             </div>
           ))}
+        </div>
+        <div className={styles.apiKeyLink}>
+          <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener noreferrer">
+            GeminiのAPIキー取得方法はこちら
+          </a>
+        </div>
+        <div className={styles.apiKeyLink}>
+          <a href="https://replicate.com/" target="_blank" rel="noopener noreferrer">
+            ReplicateのAPIキー取得方法はこちら
+          </a>
         </div>
       </section>
 
