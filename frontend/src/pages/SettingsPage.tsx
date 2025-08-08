@@ -1,8 +1,9 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { useApiKeys } from '../hooks/useApiKeys';
 import { useUserSettings, UserSetting } from '../hooks/useUserSettings';
 import { useAuth } from '../hooks/useAuth';
+import { useNotification } from '../hooks/useNotification';
 import styles from './SettingsPage.module.css';
 
 interface ModelSettingsForm {
@@ -20,13 +21,13 @@ const SUPPORTED_SERVICES = ['Gemini', 'Replicate'] as const;
 
 const SettingsPage: React.FC = () => {
   const { isAuthenticated } = useAuth();
+  const { addNotification, removeNotification } = useNotification();
   const {
     settings,
     isLoading,
     error,
     fetchUserSettings,
     updateUserSettings,
-    clearError,
   } = useUserSettings();
 
   const { 
@@ -36,14 +37,9 @@ const SettingsPage: React.FC = () => {
     getUserApiKeys,
     registerApiKey,
     deleteApiKey,
-    clearError: clearApiKeyError,
   } = useApiKeys();
 
-  const [successMessage, setSuccessMessage] = useState<string | null>(null);
-
-  // API Key form
   const modelSettingsForm = useForm<ModelSettingsForm>();
-
   const apiKeyForm = useForm<ApiKeyForm>({
     defaultValues: {
       serviceName: 'Gemini',
@@ -68,18 +64,38 @@ const SettingsPage: React.FC = () => {
     }
   }, [settings, modelSettingsForm.reset, modelSettingsForm]);
 
-  const clearMessages = () => {
-    setSuccessMessage(null);
-    clearError(); // モデル設定のエラーをクリア
-    clearApiKeyError(); // APIキーのエラーをクリア
-  };
+  useEffect(() => {
+    let loadingNotificationId: string | null = null;
+    if (isLoading || isLoadingApiKeys) {
+      loadingNotificationId = addNotification({ message: '読み込み中...', type: 'loading' });
+    } else {
+      if (loadingNotificationId) {
+        removeNotification(loadingNotificationId);
+      }
+    }
+    return () => {
+      if (loadingNotificationId) {
+        removeNotification(loadingNotificationId);
+      }
+    };
+  }, [isLoading, isLoadingApiKeys, addNotification, removeNotification]);
+
+  useEffect(() => {
+    if (error) {
+      addNotification({ message: error, type: 'error' });
+    }
+  }, [error, addNotification]);
+
+  useEffect(() => {
+    if (apiKeyError) {
+      addNotification({ message: apiKeyError, type: 'error' });
+    }
+  }, [apiKeyError, addNotification]);
 
   const handleApiKeySubmit = async (data: ApiKeyForm) => {
-    clearMessages();
-    
     const success = await registerApiKey(data.serviceName, data.apiKey);
     if (success) {
-      setSuccessMessage(`${data.serviceName}のAPIキーが正常に登録されました。`);
+      addNotification({ message: `${data.serviceName}のAPIキーが正常に登録されました。`, type: 'success' });
       apiKeyForm.reset({ serviceName: data.serviceName, apiKey: '' });
     }
   };
@@ -88,18 +104,13 @@ const SettingsPage: React.FC = () => {
     if (!window.confirm(`${serviceName}のAPIキーを削除しますか？`)) {
       return;
     }
-
-    clearMessages();
-    
     const success = await deleteApiKey(serviceName);
     if (success) {
-      setSuccessMessage(`${serviceName}のAPIキーが正常に削除されました。`);
+      addNotification({ message: `${serviceName}のAPIキーが正常に削除されました。`, type: 'success' });
     }
   };
 
   const handleModelSettingsSubmit = async (data: ModelSettingsForm) => {
-    clearMessages();
-
     const settingsToUpdate: UserSetting[] = [
       { serviceType: 'Gemini', settingKey: 'ChatModel', settingValue: data.geminiChatModel },
       { serviceType: 'Gemini', settingKey: 'ImagePromptGenerationModel', settingValue: data.geminiImagePromptModel },
@@ -108,7 +119,7 @@ const SettingsPage: React.FC = () => {
 
     const success = await updateUserSettings(settingsToUpdate);
     if (success) {
-      setSuccessMessage('モデル設定が正常に更新されました。');
+      addNotification({ message: 'モデル設定が正常に更新されました。', type: 'success' });
     }
   };
 
@@ -125,37 +136,8 @@ const SettingsPage: React.FC = () => {
     <div className={styles.container}>
       <h1>設定</h1>
       
-      {/* Error and Success Messages */}
-      {error && (
-        <div className={styles.errorMessage}>
-          {error}
-        </div>
-      )}
-      
-      {apiKeyError && (
-        <div className={styles.errorMessage}>
-          {apiKeyError}
-        </div>
-      )}
-      
-      {successMessage && (
-        <div className={styles.successMessage}>
-          {successMessage}
-        </div>
-      )}
-
-      {/* Loading Indicator */}
-      {(isLoading || isLoadingApiKeys) && (
-        <div className={styles.loading}>
-          読み込み中...
-        </div>
-      )}
-
-
-      {/* Current Status Section */}
       <section className={styles.section}>
         <h2>APIキーの現在の設定状況</h2>
-        
         <div className={styles.statusGrid}>
           {SUPPORTED_SERVICES.map((service) => (
             <div key={service} className={styles.statusItem}>
@@ -177,7 +159,6 @@ const SettingsPage: React.FC = () => {
         </div>
       </section>
 
-      {/* API Key Registration Section */}
       <section className={styles.section}>
         <h2>APIキーの登録</h2>
         <p className={styles.description}>
@@ -227,7 +208,6 @@ const SettingsPage: React.FC = () => {
         </form>
       </section>
 
-      {/* Model Settings Section */}
       <section className={styles.section}>
         <h2>モデル設定</h2>
         <p className={styles.description}>
