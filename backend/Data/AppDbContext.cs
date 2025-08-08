@@ -10,6 +10,7 @@ public class AppDbContext : DbContext
     public DbSet<ChatMessage> ChatMessages { get; set; } = null!;
     public DbSet<ChatSession> ChatSessions { get; set; } = null!;
     public DbSet<User> Users { get; set; } = null!;
+    public DbSet<UserSetting> UserSettings { get; set; } = null!;
 
     public AppDbContext(DbContextOptions<AppDbContext> options) : base(options) { }
 
@@ -56,6 +57,11 @@ public class AppDbContext : DbContext
                   .OnDelete(DeleteBehavior.Cascade); // キャラ削除時にメッセージも削除
 
             entity.Property(e => e.Sender).HasMaxLength(10);
+        });
+
+        modelBuilder.Entity<UserSetting>(entity =>
+        {
+            entity.HasIndex(e => new { e.UserId, e.ServiceType, e.SettingKey }).IsUnique();
         });
     }
 }

@@ -39,6 +39,7 @@ public class ReplicateService : IImagenService
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly ILogger<ReplicateService> _logger; // Loggerを追加
     private readonly IApiKeyService _apiKeyService;
+    private readonly IUserSettingsService _userSettingsService;
     private readonly string _defaultApiKey;
     private readonly string _modelVersion;
     private readonly string _apiUrl = "https://api.replicate.com/v1/predictions";
@@ -46,11 +47,12 @@ public class ReplicateService : IImagenService
     private readonly string _negativePrompt;
 
 
-    public ReplicateService(IHttpClientFactory httpClientFactory, IConfiguration configuration, ILogger<ReplicateService> logger, IApiKeyService apiKeyService)
+    public ReplicateService(IHttpClientFactory httpClientFactory, IConfiguration configuration, ILogger<ReplicateService> logger, IApiKeyService apiKeyService, IUserSettingsService userSettingsService)
     {
         _httpClientFactory = httpClientFactory ?? throw new ArgumentNullException(nameof(httpClientFactory));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _apiKeyService = apiKeyService ?? throw new ArgumentNullException(nameof(apiKeyService));
+        _userSettingsService = userSettingsService ?? throw new ArgumentNullException(nameof(userSettingsService));
 
         _defaultApiKey = configuration["REPLICATE_API_TOKEN"] ?? throw new InvalidOperationException("Configuration missing: REPLICATE_API_TOKEN");
         _modelVersion = "0fc0fa9885b284901a6f9c0b4d67701fd7647d157b88371427d63f8089ce140e";
@@ -64,8 +66,9 @@ public class ReplicateService : IImagenService
     /// </summary>
     public async Task<(byte[]? ImageBytes, string? MimeType)?> GenerateImageAsync(string prompt, int? userId = null, CancellationToken cancellationToken = default)
     {
-        // ユーザー専用APIキーを取得、なければデフォルトを使用
         string apiKey = _defaultApiKey;
+        string modelVersion = _modelVersion;
+
         if (userId.HasValue)
         {
             var userApiKey = await _apiKeyService.GetApiKeyAsync(userId.Value, "Replicate");
@@ -73,12 +76,19 @@ public class ReplicateService : IImagenService
             {
                 apiKey = userApiKey;
             }
+
+            var userSettings = await _userSettingsService.GetUserSettingsAsync(userId.Value);
+            var replicateModelSetting = userSettings.FirstOrDefault(s => s.ServiceType == "Replicate" && s.SettingKey == "ImageGenerationVersion");
+            if (replicateModelSetting != null && !string.IsNullOrEmpty(replicateModelSetting.SettingValue))
+            {
+                modelVersion = replicateModelSetting.SettingValue;
+            }
         }
 
         var httpClient = _httpClientFactory.CreateClient();
         httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
 
-        string? pollingUrl = await StartPredictionAsync(httpClient, prompt, cancellationToken);
+        string? pollingUrl = await StartPredictionAsync(httpClient, prompt, modelVersion, cancellationToken);
         if (string.IsNullOrEmpty(pollingUrl))
         {
             _logger.LogError("Failed to start prediction or get polling URL.");
@@ -116,10 +126,10 @@ public class ReplicateService : IImagenService
     }
 
     // 予測を開始し、ポーリング用のURLを取得するメソッド
-    private async Task<string?> StartPredictionAsync(HttpClient httpClient, string prompt, CancellationToken cancellationToken)
+    private async Task<string?> StartPredictionAsync(HttpClient httpClient, string prompt, string modelVersion, CancellationToken cancellationToken)
     {
         var requestBody = new ReplicateRequest(
-            Version: _modelVersion,
+            Version: modelVersion,
             Input: new ReplicateInput(Prompt: prompt, NegativePrompt: _negativePrompt)
         );
         var jsonBody = JsonSerializer.Serialize(requestBody);

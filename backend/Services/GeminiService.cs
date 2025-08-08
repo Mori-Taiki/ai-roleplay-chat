@@ -9,15 +9,17 @@ public class GeminiService : IGeminiService // IGeminiService インターフェ
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly IConfiguration _config;
     private readonly IApiKeyService _apiKeyService;
+    private readonly IUserSettingsService _userSettingsService;
     private readonly string _defaultApiKey; // システム用デフォルトAPIキーを保持 (コンストラクタで必須チェック)
     private readonly JsonSerializerOptions _jsonSerializerOptions; // JSON設定を保持
 
     // コンストラクタで HttpClientFactory と IConfiguration を受け取る
-    public GeminiService(IHttpClientFactory httpClientFactory, IConfiguration configuration, IApiKeyService apiKeyService)
+    public GeminiService(IHttpClientFactory httpClientFactory, IConfiguration configuration, IApiKeyService apiKeyService, IUserSettingsService userSettingsService)
     {
         _httpClientFactory = httpClientFactory ?? throw new ArgumentNullException(nameof(httpClientFactory));
         _config = configuration ?? throw new ArgumentNullException(nameof(configuration));
         _apiKeyService = apiKeyService ?? throw new ArgumentNullException(nameof(apiKeyService));
+        _userSettingsService = userSettingsService ?? throw new ArgumentNullException(nameof(userSettingsService));
 
         // APIキーはサービス生成時にチェック（設定がなければ起動時にエラーにする）
         _defaultApiKey = _config["Gemini:ApiKey"] ?? throw new InvalidOperationException("Configuration missing: Gemini:ApiKey");
@@ -35,8 +37,16 @@ public class GeminiService : IGeminiService // IGeminiService インターフェ
     /// </summary>
     public async Task<string> GenerateChatResponseAsync(string prompt, string systemPrompt, List<ChatMessage> history, int? userId = null, CancellationToken cancellationToken = default)
     {
-        // 設定ファイルからチャット用の設定を読み込む
         var model = _config["Gemini:ChatModel"] ?? "gemini-1.5-flash-latest";
+        if (userId.HasValue)
+        {
+            var userSettings = await _userSettingsService.GetUserSettingsAsync(userId.Value);
+            var chatModelSetting = userSettings.FirstOrDefault(s => s.ServiceType == "Gemini" && s.SettingKey == "ChatModel");
+            if (chatModelSetting != null && !string.IsNullOrEmpty(chatModelSetting.SettingValue))
+            {
+                model = chatModelSetting.SettingValue;
+            }
+        }
         var generationConfig = new GeminiGenerationConfig
         {
             Temperature = _config.GetValue<double?>("Gemini:DefaultTemperature") ?? 0.7,
@@ -169,6 +179,15 @@ public class GeminiService : IGeminiService // IGeminiService インターフェ
         CancellationToken cancellationToken = default)
     {
         var model = _config["Gemini:TranslationModel"] ?? "gemini-1.5-flash-latest";
+        if (userId.HasValue)
+        {
+            var userSettings = await _userSettingsService.GetUserSettingsAsync(userId.Value);
+            var imagePromptModelSetting = userSettings.FirstOrDefault(s => s.ServiceType == "Gemini" && s.SettingKey == "ImagePromptGenerationModel");
+            if (imagePromptModelSetting != null && !string.IsNullOrEmpty(imagePromptModelSetting.SettingValue))
+            {
+                model = imagePromptModelSetting.SettingValue;
+            }
+        }
         var generationConfig = new GeminiGenerationConfig
         {
             Temperature = _config.GetValue<double?>("Gemini:TranslationTemperature") ?? 0.4, // 少し創造性を上げる
