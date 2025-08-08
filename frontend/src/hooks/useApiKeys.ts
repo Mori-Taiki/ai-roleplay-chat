@@ -79,6 +79,7 @@ export const useApiKeys = (): UseApiKeysResult => {
       const errorMessage = getGenericErrorMessage(err, 'APIキー情報の取得');
       setError(errorMessage);
       console.error('Failed to get user API keys:', err);
+      setRegisteredServices([]); // ★ エラー時に配列をクリア
     } finally {
       setIsLoading(false);
     }
