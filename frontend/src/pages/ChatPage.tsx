@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useReducer } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useChatApi } from '../hooks/useChatApi';
 import { useCharacterProfile } from '../hooks/useCharacterProfile';
+import { useNotification } from '../hooks/useNotification';
 import { v4 as uuidv4 } from 'uuid';
 import styles from './ChatPage.module.css';
 
@@ -14,8 +15,7 @@ type ChatAction =
   | { type: 'ADD_USER_MESSAGE'; payload: { text: string } }
   | { type: 'ADD_AI_RESPONSE'; payload: { text: string; id: string, requiresImageGeneration: boolean, } }
   | { type: 'START_IMAGE_GENERATION'; payload: { messageId: string } } // ★ 追加
-  | { type: 'UPDATE_IMAGE_URL'; payload: { messageId: string; imageUrl: string } }
-  | { type: 'ADD_ERROR_MESSAGE'; payload: { text: string } };
+  | { type: 'UPDATE_IMAGE_URL'; payload: { messageId: string; imageUrl: string } };
 interface DisplayMessage extends Message {
   isImageLoading?: boolean;
 }
@@ -67,11 +67,6 @@ function chatReducer(state: ChatState, action: ChatAction): ChatState {
           },
         ],
       };
-    case 'ADD_ERROR_MESSAGE':
-      return {
-        ...state,
-        messages: [...state.messages, { id: uuidv4(), sender: 'ai', text: `エラー: ${action.payload.text}` }],
-      };
     default:
       return state;
   }
@@ -86,6 +81,7 @@ function ChatPage() {
   const [state, dispatch] = useReducer(chatReducer, initialState);
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(sessionId || null);
   const { messages } = state;
+  const { addNotification } = useNotification();
 
   const {
     character,
@@ -108,9 +104,12 @@ function ChatPage() {
 
   useEffect(() => {
     if (apiError) {
-      dispatch({ type: 'ADD_ERROR_MESSAGE', payload: { text: apiError } });
+      addNotification({
+        message: apiError,
+        type: 'error',
+      });
     }
-  }, [apiError]);
+  }, [apiError, addNotification]);
 
   useEffect(() => {
     if (characterId > 0) {
@@ -218,11 +217,14 @@ function ChatPage() {
           type: 'UPDATE_IMAGE_URL',
           payload: { messageId, imageUrl: '' }, // isImageLoading: false にする
         });
-        // 必要ならエラーメッセージを dispatch する
-        dispatch({ type: 'ADD_ERROR_MESSAGE', payload: { text: '画像の生成に失敗しました。' } });
+        // エラーをポップアップ通知で表示
+        addNotification({
+          message: '画像の生成に失敗しました。',
+          type: 'error',
+        });
       }
     },
-    [isLoading, generateAndUploadImage, dispatch]
+    [isLoading, generateAndUploadImage, dispatch, addNotification]
   );
 
   const handleRetry = useCallback(
