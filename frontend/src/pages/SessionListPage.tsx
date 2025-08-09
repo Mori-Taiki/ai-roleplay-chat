@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
 import { useIsAuthenticated } from "@azure/msal-react";
 import { useCharacterProfile } from '../hooks/useCharacterProfile';
 import { useSessionApi } from '../hooks/useSessionApi';
+import { useNotification } from '../hooks/useNotification';
 import { ChatSessionResponse } from '../models/ChatSessionResponse';
 import Button from '../components/Button';
 import styles from './SessionListPage.module.css';
@@ -12,10 +13,9 @@ const SessionListPage: React.FC = () => {
   const characterId = parseInt(id ?? '0', 10);
   const navigate = useNavigate();
   const isAuthenticated = useIsAuthenticated();
+  const { addNotification, removeNotification } = useNotification();
   
   const [sessions, setSessions] = useState<ChatSessionResponse[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [isCreating, setIsCreating] = useState(false);
   const [deletingSessionId, setDeletingSessionId] = useState<string | null>(null);
 
@@ -30,37 +30,57 @@ const SessionListPage: React.FC = () => {
   }, [characterId, fetchCharacter]);
 
   // Load sessions for the character
-  const loadSessions = async () => {
+  const loadSessions = useCallback(async () => {
     if (!characterId || !isAuthenticated) return;
     
-    setIsLoading(true);
-    setError(null);
+    const loadingNotificationId = addNotification({
+      message: 'セッション一覧を読み込み中...',
+      type: 'loading'
+    });
+
     try {
       const sessionList = await getSessionsForCharacter(characterId);
       setSessions(sessionList);
-    } catch (err: any) {
+      removeNotification(loadingNotificationId);
+    } catch (err: unknown) {
       console.error("Failed to load sessions:", err);
-      setError(err.message || 'セッション一覧の取得に失敗しました。');
-    } finally {
-      setIsLoading(false);
+      removeNotification(loadingNotificationId);
+      addNotification({
+        message: err instanceof Error ? err.message : 'セッション一覧の取得に失敗しました。',
+        type: 'error'
+      });
     }
-  };
+  }, [characterId, isAuthenticated, addNotification, removeNotification, getSessionsForCharacter]);
 
   useEffect(() => {
     loadSessions();
-  }, [characterId, isAuthenticated]);
+  }, [loadSessions]);
 
   const handleCreateNewSession = async () => {
     if (!characterId || isCreating) return;
 
     setIsCreating(true);
+    const creatingNotificationId = addNotification({
+      message: '新しいセッションを作成中...',
+      type: 'loading'
+    });
+
     try {
       const newSession = await createNewSession(characterId);
+      removeNotification(creatingNotificationId);
+      addNotification({
+        message: '新しいセッションを作成しました。',
+        type: 'success'
+      });
       // Navigate directly to chat with the new session
       navigate(`/chat/${characterId}/${newSession.id}`);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Failed to create session:", err);
-      alert(`エラーが発生しました: ${err.message || '新しいセッションの作成に失敗しました。'}`);
+      removeNotification(creatingNotificationId);
+      addNotification({
+        message: err instanceof Error ? err.message : '新しいセッションの作成に失敗しました。',
+        type: 'error'
+      });
     } finally {
       setIsCreating(false);
     }
@@ -69,12 +89,26 @@ const SessionListPage: React.FC = () => {
   const handleDeleteSession = async (sessionId: string) => {
     if (window.confirm('このセッションを削除しますか？この操作は元に戻せません。')) {
       setDeletingSessionId(sessionId);
+      const deletingNotificationId = addNotification({
+        message: 'セッションを削除中...',
+        type: 'loading'
+      });
+
       try {
         await deleteSession(sessionId);
+        removeNotification(deletingNotificationId);
+        addNotification({
+          message: 'セッションを削除しました。',
+          type: 'success'
+        });
         await loadSessions(); // Reload sessions after deletion
-      } catch (err: any) {
+      } catch (err: unknown) {
         console.error("Session deletion failed:", err);
-        alert(`エラーが発生しました: ${err.message || 'セッションの削除に失敗しました。'}`);
+        removeNotification(deletingNotificationId);
+        addNotification({
+          message: err instanceof Error ? err.message : 'セッションの削除に失敗しました。',
+          type: 'error'
+        });
       } finally {
         setDeletingSessionId(null);
       }
@@ -121,12 +155,7 @@ const SessionListPage: React.FC = () => {
         </div>
       </div>
 
-      {error && <p className={styles.errorMessage}>エラー: {error}</p>}
-      
-      {isLoading ? (
-        <p>セッション一覧を読み込み中...</p>
-      ) : (
-        <div className={styles.sessionList}>
+      <div className={styles.sessionList}>
           {sessions.length === 0 ? (
             <div className={styles.emptyState}>
               <p>まだセッションがありません。</p>
@@ -172,7 +201,6 @@ const SessionListPage: React.FC = () => {
             ))
           )}
         </div>
-      )}
     </div>
   );
 };
