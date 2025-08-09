@@ -78,12 +78,13 @@ function chatReducer(state: ChatState, action: ChatAction): ChatState {
 }
 
 function ChatPage() {
-  const { id } = useParams<{ id: string }>();
-  const characterId = parseInt(id ?? '0', 10);
+  const { id, characterId: charIdParam, sessionId } = useParams<{ id?: string; characterId?: string; sessionId?: string }>();
+  // Handle both route patterns: /chat/:id and /chat/:characterId/:sessionId
+  const characterId = parseInt(charIdParam || id || '0', 10);
 
   const [inputValue, setInputValue] = useState<string>('');
   const [state, dispatch] = useReducer(chatReducer, initialState);
-  const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
+  const [currentSessionId, setCurrentSessionId] = useState<string | null>(sessionId || null);
   const { messages } = state;
 
   const {
@@ -119,14 +120,17 @@ function ChatPage() {
 
   useEffect(() => {
     if (!characterId) return;
-    const loadLatestSession = async () => {
-      const latestSessionId = await fetchLatestSessionId(characterId);
-      if (latestSessionId) {
-        setCurrentSessionId(latestSessionId);
-      }
-    };
-    loadLatestSession();
-  }, [characterId, fetchLatestSessionId]);
+    // Only fetch latest session if no specific session ID was provided in the URL
+    if (!sessionId) {
+      const loadLatestSession = async () => {
+        const latestSessionId = await fetchLatestSessionId(characterId);
+        if (latestSessionId) {
+          setCurrentSessionId(latestSessionId);
+        }
+      };
+      loadLatestSession();
+    }
+  }, [characterId, sessionId, fetchLatestSessionId]);
 
   useEffect(() => {
     const loadHistory = async () => {

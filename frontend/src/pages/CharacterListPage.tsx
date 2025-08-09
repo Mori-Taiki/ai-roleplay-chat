@@ -80,6 +80,7 @@ const CharacterListPage: React.FC = () => {
                     {/* アクションボタン */}
                     <div className={styles.characterActions}>
                        <Button as={Link} to={`/chat/${char.id}`} variant="secondary" size="sm">会話する</Button>
+                       <Button as={Link} to={`/characters/${char.id}/sessions`} variant="secondary" size="sm" style={{ marginLeft: '0.5rem' }}>セッション管理</Button>
                        <Button as={Link} to={`/characters/edit/${char.id}`} variant="secondary" size="sm" style={{ marginLeft: '0.5rem' }}>編集</Button>
                        {/* 削除ボタン (disabled 条件は維持) */}
                        <Button
