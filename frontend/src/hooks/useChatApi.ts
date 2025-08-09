@@ -17,6 +17,8 @@ interface UseChatApiReturn {
   fetchHistory: (sessionId: string) => Promise<Message[] | null>;
   isLoadingLatestSession: boolean;
   fetchLatestSessionId: (characterId: number) => Promise<string | null>;
+  editAndRegenerate: (userMessageId: number, newText: string) => Promise<ChatResponse | null>;
+  regenerateAi: (aiMessageId: number) => Promise<ChatResponse | null>;
   error: string | null;
 }
 interface ImageUploadResponse {
@@ -182,6 +184,70 @@ export const useChatApi = (): UseChatApiReturn => {
     [acquireToken, setError]
   );
 
+  const editAndRegenerate = useCallback(
+    async (userMessageId: number, newText: string): Promise<ChatResponse | null> => {
+      const accessToken = await acquireToken();
+      if (!accessToken) return null;
+
+      setIsSendingMessage(true);
+      setError(null);
+      try {
+        const baseUrl = import.meta.env.VITE_API_URL || '';
+        const requestBody = { NewText: newText };
+        const response = await fetch(`${baseUrl}/api/chat/messages/${userMessageId}/edit-and-regenerate`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+          body: JSON.stringify(requestBody),
+        });
+        if (!response.ok) {
+          const message = await getApiErrorMessage(response);
+          throw new Error(message);
+        }
+        const data: ChatResponse = await response.json();
+        return data;
+      } catch (err) {
+        const message = getGenericErrorMessage(err, 'メッセージ編集・再生成');
+        setError(message);
+        console.error('Edit and regenerate error:', err);
+        return null;
+      } finally {
+        setIsSendingMessage(false);
+      }
+    },
+    [acquireToken]
+  );
+
+  const regenerateAi = useCallback(
+    async (aiMessageId: number): Promise<ChatResponse | null> => {
+      const accessToken = await acquireToken();
+      if (!accessToken) return null;
+
+      setIsSendingMessage(true);
+      setError(null);
+      try {
+        const baseUrl = import.meta.env.VITE_API_URL || '';
+        const response = await fetch(`${baseUrl}/api/chat/ai/${aiMessageId}/regenerate`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+        });
+        if (!response.ok) {
+          const message = await getApiErrorMessage(response);
+          throw new Error(message);
+        }
+        const data: ChatResponse = await response.json();
+        return data;
+      } catch (err) {
+        const message = getGenericErrorMessage(err, 'AI応答再生成');
+        setError(message);
+        console.error('Regenerate AI error:', err);
+        return null;
+      } finally {
+        setIsSendingMessage(false);
+      }
+    },
+    [acquireToken]
+  );
+
   return {
     isSendingMessage,
     isGeneratingImage,
@@ -192,5 +258,7 @@ export const useChatApi = (): UseChatApiReturn => {
     fetchHistory,
     isLoadingLatestSession,
     fetchLatestSessionId,
+    editAndRegenerate,
+    regenerateAi,
   };
 };
