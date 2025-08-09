@@ -1,7 +1,9 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using AiRoleplayChat.Backend.Data;
+using AiRoleplayChat.Backend.Domain.Entities;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging; // ロギング追加
@@ -54,6 +56,41 @@ namespace AiRoleplayChat.Backend.Services
                 // 500 Internal Server Error を返すか、より具体的なエラーを返す
                 return new ObjectResult($"An error occurred while deleting the session.") { StatusCode = 500 };
             }
+        }
+
+        public async Task<List<ChatSession>> GetSessionsForCharacterAsync(int characterId, int userId)
+        {
+            _logger.LogInformation("Getting sessions for character {CharacterId} and user {UserId}", characterId, userId);
+            
+            var sessions = await _context.ChatSessions
+                .Where(s => s.CharacterProfileId == characterId && s.UserId == userId)
+                .Include(s => s.Messages.OrderByDescending(m => m.CreatedAt).Take(1)) // Include latest message for preview
+                .OrderByDescending(s => s.UpdatedAt)
+                .ToListAsync();
+
+            return sessions;
+        }
+
+        public async Task<ChatSession> CreateNewSessionAsync(int characterId, int userId)
+        {
+            _logger.LogInformation("Creating new session for character {CharacterId} and user {UserId}", characterId, userId);
+
+            var session = new ChatSession
+            {
+                CharacterProfileId = characterId,
+                UserId = userId,
+                StartTime = DateTime.UtcNow,
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
+            };
+
+            _context.ChatSessions.Add(session);
+            await _context.SaveChangesAsync();
+
+            _logger.LogInformation("Successfully created session {SessionId} for character {CharacterId} and user {UserId}", 
+                session.Id, characterId, userId);
+
+            return session;
         }
     }
 }

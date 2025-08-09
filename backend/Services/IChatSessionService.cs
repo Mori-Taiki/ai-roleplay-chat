@@ -1,6 +1,8 @@
 using System;
+using System.Collections.Generic;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Mvc; // ActionResultなどを返すなら
+using AiRoleplayChat.Backend.Domain.Entities;
 
 namespace AiRoleplayChat.Backend.Services
 {
@@ -8,5 +10,7 @@ namespace AiRoleplayChat.Backend.Services
     public interface IChatSessionService
     {
         Task<IActionResult> DeleteChatSessionAsync(string sessionId, int userId);
+        Task<List<ChatSession>> GetSessionsForCharacterAsync(int characterId, int userId);
+        Task<ChatSession> CreateNewSessionAsync(int characterId, int userId);
     }
 }
