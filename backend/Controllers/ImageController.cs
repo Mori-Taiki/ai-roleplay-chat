@@ -16,6 +16,7 @@ public class ImageController : BaseApiController // ★ ControllerBaseからBase
     private readonly IGeminiService _geminiService;
     private readonly IImagenService _imagenService;
     private readonly IBlobStorageService _blobStorageService;
+    private readonly IChatMessageService _chatMessageService;
     private readonly AppDbContext _context;
 
     // ★ コンストラクタを大幅に変更
@@ -24,6 +25,7 @@ public class ImageController : BaseApiController // ★ ControllerBaseからBase
         IGeminiService geminiService,
         IImagenService imagenService,
         IBlobStorageService blobStorageService,
+        IChatMessageService chatMessageService,
         AppDbContext context,
         ILogger<ImageController> logger)
         : base(userService, logger) // BaseApiControllerのコンストラクタを呼び出し
@@ -31,6 +33,7 @@ public class ImageController : BaseApiController // ★ ControllerBaseからBase
         _geminiService = geminiService;
         _imagenService = imagenService;
         _blobStorageService = blobStorageService;
+        _chatMessageService = chatMessageService;
         _context = context;
     }
 
@@ -104,20 +107,19 @@ public class ImageController : BaseApiController // ★ ControllerBaseからBase
         }
 
         // 4. 画像生成サービスを呼び出し
-        var generationResult = await _imagenService.GenerateImageAsync(englishPrompt, appUserId, cancellationToken);
+        var generationResult = await _imagenService.GenerateImageWithDetailsAsync(englishPrompt, appUserId, cancellationToken);
         if (generationResult is not { ImageBytes: not null, MimeType: not null })
         {
             return Problem("画像データの生成に失敗しました。");
         }
-        var (imageBytes, mimeType) = generationResult.Value;
 
         // 5. Blob Storageへアップロード
         string blobName = $"{Guid.NewGuid()}.png"; // 一意のファイル名
         string imageUrl;
         try
         {
-            using var imageStream = new MemoryStream(imageBytes);
-            imageUrl = await _blobStorageService.UploadAsync(imageStream, blobName, mimeType, cancellationToken);
+            using var imageStream = new MemoryStream(generationResult.ImageBytes);
+            imageUrl = await _blobStorageService.UploadAsync(imageStream, blobName, generationResult.MimeType, cancellationToken);
         }
         catch (Exception ex)
         {
@@ -130,9 +132,13 @@ public class ImageController : BaseApiController // ★ ControllerBaseからBase
         if (messageToUpdate != null)
         {
             messageToUpdate.ImageUrl = imageUrl;
+            messageToUpdate.ImagePrompt = generationResult.ActualPrompt;
+            messageToUpdate.ModelId = generationResult.ModelId;
+            messageToUpdate.ServiceName = generationResult.ServiceName;
             messageToUpdate.UpdatedAt = DateTime.UtcNow;
             await _context.SaveChangesAsync(cancellationToken);
-            _logger.LogInformation("Successfully updated MessageId {MessageId} with ImageUrl: {ImageUrl}", request.MessageId, imageUrl);
+            _logger.LogInformation("Successfully updated MessageId {MessageId} with ImageUrl: {ImageUrl}, ModelId: {ModelId}, ServiceName: {ServiceName}", 
+                request.MessageId, imageUrl, generationResult.ModelId, generationResult.ServiceName);
         }
         else
         {
@@ -141,5 +147,101 @@ public class ImageController : BaseApiController // ★ ControllerBaseからBase
 
         // 7. フロントエンドに画像のURLを返す
         return Ok(new { ImageUrl = imageUrl });
+    }
+
+    /// <summary>
+    /// キャラクターの画像ギャラリーを取得します。
+    /// </summary>
+    [HttpGet]
+    [ProducesResponseType(typeof(ImageGalleryResponseDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+    public async Task<IActionResult> GetImages(
+        [FromQuery] int characterId,
+        [FromQuery] string? sessionId = null,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 40,
+        CancellationToken cancellationToken = default)
+    {
+        var (appUserId, errorResult) = await GetCurrentAppUserIdAsync(cancellationToken);
+        if (errorResult != null) return errorResult;
+
+        if (characterId <= 0 || page <= 0 || pageSize <= 0 || pageSize > 100)
+        {
+            return BadRequest(new { Message = "無効なクエリパラメータです。" });
+        }
+
+        try
+        {
+            var (items, total) = await _chatMessageService.GetImageMessagesAsync(
+                appUserId!.Value, characterId, sessionId, page, pageSize, cancellationToken);
+
+            var imageDtos = items.Select(m => new ImageItemDto
+            {
+                MessageId = m.Id,
+                CharacterId = m.CharacterProfileId,
+                SessionId = m.SessionId,
+                SessionTitle = m.Session?.Id, // Simple session ID as title for now
+                ImageUrl = m.ImageUrl!,
+                ImagePrompt = m.ImagePrompt,
+                ModelId = m.ModelId,
+                ServiceName = m.ServiceName,
+                CreatedAt = m.CreatedAt
+            }).ToList();
+
+            var response = new ImageGalleryResponseDto
+            {
+                Items = imageDtos,
+                Total = total,
+                Page = page,
+                PageSize = pageSize
+            };
+
+            return Ok(response);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error retrieving images for CharacterId: {CharacterId}, UserId: {UserId}", characterId, appUserId);
+            return StatusCode(500, "画像一覧の取得中にエラーが発生しました。");
+        }
+    }
+
+    /// <summary>
+    /// 画像メッセージをソフトデリートします。
+    /// </summary>
+    [HttpDelete("{messageId:int}")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+    public async Task<IActionResult> DeleteImage(int messageId, CancellationToken cancellationToken = default)
+    {
+        var (appUserId, errorResult) = await GetCurrentAppUserIdAsync(cancellationToken);
+        if (errorResult != null) return errorResult;
+
+        if (messageId <= 0)
+        {
+            return BadRequest(new { Message = "無効なメッセージIDです。" });
+        }
+
+        try
+        {
+            var success = await _chatMessageService.SoftDeleteImageMessageAsync(
+                appUserId!.Value, messageId, cancellationToken);
+
+            if (!success)
+            {
+                return NotFound(new { Message = "画像メッセージが見つからない、または削除権限がありません。" });
+            }
+
+            return NoContent();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error deleting image MessageId: {MessageId}, UserId: {UserId}", messageId, appUserId);
+            return StatusCode(500, "画像削除中にエラーが発生しました。");
+        }
     }
 }

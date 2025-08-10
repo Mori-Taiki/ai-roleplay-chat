@@ -69,6 +69,44 @@ namespace AiRoleplayChat.Backend.Controllers // プロジェクトの実際の�
             }
         }
 
+        // GET: api/sessions/character/{characterId}/summary
+        [HttpGet("character/{characterId}/summary", Name = "GetSessionSummariesForCharacter")]
+        [ProducesResponseType(typeof(List<SessionSummaryDto>), StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+        public async Task<ActionResult<List<SessionSummaryDto>>> GetSessionSummariesForCharacter(int characterId)
+        {
+            var (appUserId, errorResult) = await GetCurrentAppUserIdAsync();
+            if (errorResult != null)
+            {
+                return errorResult;
+            }
+            if (appUserId == null)
+            {
+                _logger.LogWarning("User ID could not be determined for session summaries fetch for character: {CharacterId}", characterId);
+                return Unauthorized("User ID could not be determined.");
+            }
+
+            try
+            {
+                var sessions = await _chatSessionService.GetSessionsForCharacterAsync(characterId, (int)appUserId);
+                
+                var sessionSummaries = sessions.Select(s => new SessionSummaryDto
+                {
+                    Id = s.Id,
+                    Title = $"Session {s.StartTime:yyyy-MM-dd HH:mm}",
+                    CreatedAt = s.CreatedAt
+                }).ToList();
+
+                return Ok(sessionSummaries);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error getting session summaries for character {CharacterId} and user {UserId}", characterId, appUserId);
+                return StatusCode(500, "An error occurred while retrieving session summaries.");
+            }
+        }
+
         // POST: api/sessions/character/{characterId}
         [HttpPost("character/{characterId}", Name = "CreateNewSession")]
         [ProducesResponseType(StatusCodes.Status201Created)]

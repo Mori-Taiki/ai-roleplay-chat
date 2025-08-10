@@ -38,6 +38,18 @@ public class ChatMessage
     [Column(TypeName = "MEDIUMTEXT")]
     public string? ImageUrl { get; set; }
 
+    [Column(TypeName = "TEXT")]
+    public string? ImagePrompt { get; set; }
+
+    [Column(TypeName = "TEXT")]
+    public string? ModelId { get; set; }
+
+    [Column(TypeName = "TEXT")]
+    public string? ServiceName { get; set; }
+
+    [Column(TypeName = "DATETIME(6)")]
+    public DateTime? DeletedAt { get; set; }
+
     [Required]
     [Column(TypeName = "DATETIME(6)")]
     public DateTime Timestamp { get; set; } = DateTime.UtcNow;
