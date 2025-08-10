@@ -145,6 +145,9 @@ const SessionListPage: React.FC = () => {
           <Button as={Link} to="/characters" variant="secondary" size="sm">
             キャラクター一覧に戻る
           </Button>
+          <Button as={Link} to={`/characters/${characterId}/images`} variant="secondary" size="sm">
+            画像ギャラリー
+          </Button>
           <Button 
             onClick={handleCreateNewSession} 
             variant="primary" 
