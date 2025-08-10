@@ -93,7 +93,12 @@ function chatReducer(state: ChatState, action: ChatAction): ChatState {
         ...state,
         messages: state.messages.map((msg) =>
           msg.id === action.payload.messageId
-            ? { ...msg, text: action.payload.newText, isImageLoading: action.payload.requiresImageGeneration, imageUrl: undefined }
+            ? {
+                ...msg,
+                text: action.payload.newText,
+                isImageLoading: action.payload.requiresImageGeneration,
+                ...(action.payload.requiresImageGeneration ? { imageUrl: undefined } : {}),
+              }
             : msg
         ),
       };

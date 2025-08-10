@@ -464,17 +464,25 @@ public class ChatController : BaseApiController
             _logger.LogInformation("Image generation tag detected for regenerated AI message {MessageId}.", aiMessageId);
         }
 
-        // Update the existing AI message
-        aiMessage.Text = finalAiReplyText;
-        aiMessage.ImageUrl = null; // Reset image URL
-        aiMessage.UpdatedAt = DateTime.UtcNow;
+        // Create a new AI message instead of updating the existing one
+        var newAiMessage = new ChatMessage
+        {
+            SessionId = aiMessage.SessionId,
+            CharacterProfileId = aiMessage.CharacterProfileId,
+            UserId = aiMessage.UserId,
+            Sender = "ai",
+            Text = finalAiReplyText,
+            ImageUrl = null,
+            Timestamp = DateTime.UtcNow,
+        };
 
+        _context.ChatMessages.Add(newAiMessage);
         await _context.SaveChangesAsync(cancellationToken);
 
         var response = new ChatResponse(
             finalAiReplyText,
-            aiMessage.SessionId,
-            aiMessage.Id,
+            newAiMessage.SessionId,
+            newAiMessage.Id,
             requiresImageGeneration
         );
 

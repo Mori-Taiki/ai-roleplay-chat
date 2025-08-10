@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Message } from '../models/Message';
 import styles from './MessageItem.module.css';
 import Button from './Button';
@@ -29,6 +29,11 @@ const MessageItem: React.FC<MessageItemProps> = ({
 }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [editText, setEditText] = useState(message.text);
+
+  // Sync editText with message.text when it changes
+  useEffect(() => {
+    setEditText(message.text);
+  }, [message.text]);
 
   // ★ 画像生成ボタンを表示すべきかどうかの条件
   const showImageGenButton = message.sender === 'ai' && !message.imageUrl && !message.isImageLoading;
