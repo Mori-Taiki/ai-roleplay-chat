@@ -242,4 +242,252 @@ public class ChatController : BaseApiController
         _logger.LogInformation("New session created: {SessionId}", newSession.Id);
         return newSession;
     }
+
+    // PUT /api/chat/messages/{userMessageId}/edit-and-regenerate
+    [HttpPut("messages/{userMessageId}/edit-and-regenerate")]
+    [ProducesResponseType(typeof(ChatResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    public async Task<ActionResult<ChatResponse>> EditAndRegenerateAsync(
+        int userMessageId,
+        [FromBody] EditMessageRequest request,
+        CancellationToken cancellationToken)
+    {
+        _logger.LogInformation("Received edit and regenerate request for message {MessageId}", userMessageId);
+
+        var (appUserId, errorResult) = await GetCurrentAppUserIdAsync(cancellationToken);
+        if (errorResult != null) return errorResult;
+        if (appUserId == null) return BadRequest("User ID cannot be null.");
+
+        // Find the user message
+        var userMessage = await _context.ChatMessages
+            .FirstOrDefaultAsync(m => m.Id == userMessageId && m.UserId == appUserId && m.Sender == "user", cancellationToken);
+
+        if (userMessage == null)
+        {
+            _logger.LogWarning("User message not found or access denied: {MessageId}", userMessageId);
+            return NotFound("指定されたメッセージが見つかりません。");
+        }
+
+        // Verify this is the latest user message in the session
+        var latestUserMessage = await _context.ChatMessages
+            .Where(m => m.SessionId == userMessage.SessionId && m.UserId == appUserId && m.Sender == "user")
+            .OrderByDescending(m => m.Timestamp)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (latestUserMessage == null || latestUserMessage.Id != userMessageId)
+        {
+            _logger.LogWarning("Attempt to edit non-latest user message: {MessageId}", userMessageId);
+            return BadRequest("編集できるのは最新のユーザーメッセージのみです。");
+        }
+
+        // Get character info
+        var character = await _context.CharacterProfiles.FindAsync(new object[] { userMessage.CharacterProfileId }, cancellationToken);
+        if (character == null)
+        {
+            _logger.LogWarning("Character not found: {CharacterId}", userMessage.CharacterProfileId);
+            return NotFound("キャラクターが見つかりません。");
+        }
+
+        // Update the user message text
+        userMessage.Text = request.NewText;
+        userMessage.UpdatedAt = DateTime.UtcNow;
+
+        // Find and remove any existing AI response to this user message
+        var existingAiResponse = await _context.ChatMessages
+            .Where(m => m.SessionId == userMessage.SessionId && m.UserId == appUserId && m.Sender == "ai")
+            .OrderByDescending(m => m.Timestamp)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (existingAiResponse != null)
+        {
+            _context.ChatMessages.Remove(existingAiResponse);
+        }
+
+        // Get chat history up to the edited message
+        var history = await _context.ChatMessages
+            .Where(m => m.SessionId == userMessage.SessionId && m.Timestamp < userMessage.Timestamp)
+            .OrderBy(m => m.Timestamp)
+            .AsNoTracking()
+            .ToListAsync(cancellationToken);
+
+        // Generate new AI response
+        string aiReplyTextWithPotentialTag;
+        try
+        {
+            aiReplyTextWithPotentialTag = await _geminiService.GenerateChatResponseAsync(
+                request.NewText,
+                SystemPromptHelper.AppendImageInstruction(character.SystemPrompt ?? SystemPromptHelper.GenerateDefaultPrompt(character.Name, character.Personality, character.Tone, character.Backstory)),
+                history,
+                appUserId,
+                cancellationToken
+            );
+            _logger.LogInformation("Gemini response received for edited message {MessageId}", userMessageId);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error calling Gemini service for edited message {MessageId}", userMessageId);
+            return StatusCode(StatusCodes.Status500InternalServerError, "AI応答の生成中にエラーが発生しました。");
+        }
+
+        string finalAiReplyText = aiReplyTextWithPotentialTag;
+        bool requiresImageGeneration = false;
+
+        // Check for image generation tag
+        Match imageTagMatch = Regex.Match(aiReplyTextWithPotentialTag, @"\[generate_image\]");
+        if (imageTagMatch.Success)
+        {
+            requiresImageGeneration = true;
+            finalAiReplyText = aiReplyTextWithPotentialTag.Replace(imageTagMatch.Value, "").Trim();
+            _logger.LogInformation("Image generation tag detected for edited message {MessageId}.", userMessageId);
+        }
+
+        // Create new AI response
+        var newAiMessage = new ChatMessage
+        {
+            SessionId = userMessage.SessionId,
+            CharacterProfileId = userMessage.CharacterProfileId,
+            UserId = appUserId.Value,
+            Sender = "ai",
+            Text = finalAiReplyText,
+            ImageUrl = null,
+            Timestamp = DateTime.UtcNow,
+        };
+
+        _context.ChatMessages.Add(newAiMessage);
+        await _context.SaveChangesAsync(cancellationToken);
+
+        var response = new ChatResponse(
+            finalAiReplyText,
+            userMessage.SessionId,
+            newAiMessage.Id,
+            requiresImageGeneration
+        );
+
+        return Ok(response);
+    }
+
+    // POST /api/chat/ai/{aiMessageId}/regenerate
+    [HttpPost("ai/{aiMessageId}/regenerate")]
+    [ProducesResponseType(typeof(ChatResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    public async Task<ActionResult<ChatResponse>> RegenerateAiResponseAsync(
+        int aiMessageId,
+        CancellationToken cancellationToken)
+    {
+        _logger.LogInformation("Received regenerate request for AI message {MessageId}", aiMessageId);
+
+        var (appUserId, errorResult) = await GetCurrentAppUserIdAsync(cancellationToken);
+        if (errorResult != null) return errorResult;
+        if (appUserId == null) return BadRequest("User ID cannot be null.");
+
+        // Find the AI message
+        var aiMessage = await _context.ChatMessages
+            .FirstOrDefaultAsync(m => m.Id == aiMessageId && m.UserId == appUserId && m.Sender == "ai", cancellationToken);
+
+        if (aiMessage == null)
+        {
+            _logger.LogWarning("AI message not found or access denied: {MessageId}", aiMessageId);
+            return NotFound("指定されたメッセージが見つかりません。");
+        }
+
+        // Verify this is the latest AI message in the session
+        var latestAiMessage = await _context.ChatMessages
+            .Where(m => m.SessionId == aiMessage.SessionId && m.UserId == appUserId && m.Sender == "ai")
+            .OrderByDescending(m => m.Timestamp)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (latestAiMessage == null || latestAiMessage.Id != aiMessageId)
+        {
+            _logger.LogWarning("Attempt to regenerate non-latest AI message: {MessageId}", aiMessageId);
+            return BadRequest("再生成できるのは最新のAIメッセージのみです。");
+        }
+
+        // Get the corresponding user message
+        var userMessage = await _context.ChatMessages
+            .Where(m => m.SessionId == aiMessage.SessionId && m.UserId == appUserId && m.Sender == "user")
+            .OrderByDescending(m => m.Timestamp)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (userMessage == null)
+        {
+            _logger.LogWarning("No user message found for AI message regeneration: {MessageId}", aiMessageId);
+            return BadRequest("対応するユーザーメッセージが見つかりません。");
+        }
+
+        // Get character info
+        var character = await _context.CharacterProfiles.FindAsync(new object[] { aiMessage.CharacterProfileId }, cancellationToken);
+        if (character == null)
+        {
+            _logger.LogWarning("Character not found: {CharacterId}", aiMessage.CharacterProfileId);
+            return NotFound("キャラクターが見つかりません。");
+        }
+
+        // Get chat history up to the user message
+        var history = await _context.ChatMessages
+            .Where(m => m.SessionId == aiMessage.SessionId && m.Timestamp < userMessage.Timestamp)
+            .OrderBy(m => m.Timestamp)
+            .AsNoTracking()
+            .ToListAsync(cancellationToken);
+
+        // Generate new AI response
+        string aiReplyTextWithPotentialTag;
+        try
+        {
+            aiReplyTextWithPotentialTag = await _geminiService.GenerateChatResponseAsync(
+                userMessage.Text,
+                SystemPromptHelper.AppendImageInstruction(character.SystemPrompt ?? SystemPromptHelper.GenerateDefaultPrompt(character.Name, character.Personality, character.Tone, character.Backstory)),
+                history,
+                appUserId,
+                cancellationToken
+            );
+            _logger.LogInformation("Gemini response received for regenerated AI message {MessageId}", aiMessageId);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error calling Gemini service for AI message regeneration {MessageId}", aiMessageId);
+            return StatusCode(StatusCodes.Status500InternalServerError, "AI応答の生成中にエラーが発生しました。");
+        }
+
+        string finalAiReplyText = aiReplyTextWithPotentialTag;
+        bool requiresImageGeneration = false;
+
+        // Check for image generation tag
+        Match imageTagMatch = Regex.Match(aiReplyTextWithPotentialTag, @"\[generate_image\]");
+        if (imageTagMatch.Success)
+        {
+            requiresImageGeneration = true;
+            finalAiReplyText = aiReplyTextWithPotentialTag.Replace(imageTagMatch.Value, "").Trim();
+            _logger.LogInformation("Image generation tag detected for regenerated AI message {MessageId}.", aiMessageId);
+        }
+
+        // Remove the old AI message and create a new one to maintain consistency
+        _context.ChatMessages.Remove(aiMessage);
+        
+        var newAiMessage = new ChatMessage
+        {
+            SessionId = aiMessage.SessionId,
+            CharacterProfileId = aiMessage.CharacterProfileId,
+            UserId = aiMessage.UserId,
+            Sender = "ai",
+            Text = finalAiReplyText,
+            ImageUrl = null,
+            Timestamp = DateTime.UtcNow,
+        };
+
+        _context.ChatMessages.Add(newAiMessage);
+        await _context.SaveChangesAsync(cancellationToken);
+
+        var response = new ChatResponse(
+            finalAiReplyText,
+            newAiMessage.SessionId,
+            newAiMessage.Id,
+            requiresImageGeneration
+        );
+
+        return Ok(response);
+    }
 }

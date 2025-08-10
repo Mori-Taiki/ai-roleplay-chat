@@ -12,10 +12,14 @@ import { Message } from '../models/Message';
 
 type ChatAction =
   | { type: 'SET_HISTORY'; payload: Message[] }
-  | { type: 'ADD_USER_MESSAGE'; payload: { text: string } }
+  | { type: 'ADD_USER_MESSAGE'; payload: { text: string; id: string } }
   | { type: 'ADD_AI_RESPONSE'; payload: { text: string; id: string, requiresImageGeneration: boolean, } }
   | { type: 'START_IMAGE_GENERATION'; payload: { messageId: string } } // ★ 追加
-  | { type: 'UPDATE_IMAGE_URL'; payload: { messageId: string; imageUrl: string } };
+  | { type: 'UPDATE_IMAGE_URL'; payload: { messageId: string; imageUrl: string } }
+  | { type: 'SET_MESSAGE_ERROR'; payload: { messageId: string; isError: boolean } }
+  | { type: 'UPDATE_USER_MESSAGE'; payload: { messageId: string; newText: string } }
+  | { type: 'UPDATE_AI_MESSAGE'; payload: { messageId: string; newText: string; requiresImageGeneration: boolean } }
+  | { type: 'REPLACE_AI_MESSAGE'; payload: { oldMessageId: string; newMessageId: string; newText: string; requiresImageGeneration: boolean } };
 interface DisplayMessage extends Message {
   isImageLoading?: boolean;
 }
@@ -33,7 +37,7 @@ function chatReducer(state: ChatState, action: ChatAction): ChatState {
     case 'ADD_USER_MESSAGE':
       return {
         ...state,
-        messages: [...state.messages, { id: uuidv4(), sender: 'user', text: action.payload.text }],
+        messages: [...state.messages, { id: action.payload.id, sender: 'user', text: action.payload.text }],
       };
     // ★ START_IMAGE_GENERATION アクションの処理を追加
     case 'START_IMAGE_GENERATION':
@@ -67,6 +71,50 @@ function chatReducer(state: ChatState, action: ChatAction): ChatState {
           },
         ],
       };
+    case 'SET_MESSAGE_ERROR':
+      return {
+        ...state,
+        messages: state.messages.map((msg) =>
+          msg.id === action.payload.messageId
+            ? { ...msg, isError: action.payload.isError }
+            : msg
+        ),
+      };
+    case 'UPDATE_USER_MESSAGE':
+      return {
+        ...state,
+        messages: state.messages.map((msg) =>
+          msg.id === action.payload.messageId
+            ? { ...msg, text: action.payload.newText, isError: false }
+            : msg
+        ),
+      };
+    case 'UPDATE_AI_MESSAGE':
+      return {
+        ...state,
+        messages: state.messages.map((msg) =>
+          msg.id === action.payload.messageId
+            ? {
+                ...msg,
+                text: action.payload.newText,
+                isImageLoading: action.payload.requiresImageGeneration,
+                ...(action.payload.requiresImageGeneration ? { imageUrl: undefined } : {}),
+              }
+            : msg
+        ),
+      };
+    case 'REPLACE_AI_MESSAGE':
+      return {
+        ...state,
+        messages: state.messages
+          .filter((msg) => msg.id !== action.payload.oldMessageId)
+          .concat({
+            id: action.payload.newMessageId,
+            sender: 'ai',
+            text: action.payload.newText,
+            isImageLoading: action.payload.requiresImageGeneration,
+          }),
+      };
     default:
       return state;
   }
@@ -99,6 +147,8 @@ function ChatPage() {
     fetchHistory,
     isLoadingLatestSession,
     fetchLatestSessionId,
+    editAndRegenerate,
+    regenerateAi,
   } = useChatApi();
   const isLoading = isSendingMessage || isLoadingCharacter;
 
@@ -149,7 +199,8 @@ function ChatPage() {
     async (prompt: string) => {
       if (!prompt || isLoading || !characterId) return;
 
-      dispatch({ type: 'ADD_USER_MESSAGE', payload: { text: prompt } });
+      const tempUserId = uuidv4();
+      dispatch({ type: 'ADD_USER_MESSAGE', payload: { text: prompt, id: tempUserId } });
       if (prompt === inputValue) {
         setInputValue('');
       }
@@ -157,6 +208,9 @@ function ChatPage() {
       const response = await sendMessage(characterId, prompt, currentSessionId);
 
       if (response) {
+        // Success - clear any error state
+        dispatch({ type: 'SET_MESSAGE_ERROR', payload: { messageId: tempUserId, isError: false } });
+        
         // 1. まずテキスト応答をReducerに渡して表示
         //    バックエンドから受け取ったメッセージIDを文字列に変換して使う
         const aiMessageId = response.aiMessageId.toString();
@@ -185,6 +239,9 @@ function ChatPage() {
             });
           }
         }
+      } else {
+        // Set error for the user message that just failed
+        dispatch({ type: 'SET_MESSAGE_ERROR', payload: { messageId: tempUserId, isError: true } });
       }
     },
     [inputValue, isLoading, characterId, currentSessionId, sendMessage, generateAndUploadImage, dispatch]
@@ -225,6 +282,120 @@ function ChatPage() {
       }
     },
     [isLoading, generateAndUploadImage, dispatch, addNotification]
+  );
+
+  const handleEditMessage = useCallback(
+    async (messageId: string, newText: string) => {
+      if (isLoading || !characterId) return;
+
+      const messageIdAsNumber = parseInt(messageId, 10);
+      if (isNaN(messageIdAsNumber)) return;
+
+      // Find the corresponding AI message to replace
+      const userMessageIndex = messages.findIndex(msg => msg.id === messageId);
+      const aiMessageToReplace = messages.find((msg, index) => 
+        msg.sender === 'ai' && index > userMessageIndex
+      );
+
+      const response = await editAndRegenerate(messageIdAsNumber, newText);
+
+      if (response) {
+        // Update the user message text
+        dispatch({
+          type: 'UPDATE_USER_MESSAGE',
+          payload: { messageId, newText },
+        });
+
+        // Replace the AI response with new one
+        const newAiMessageId = response.aiMessageId.toString();
+        if (aiMessageToReplace) {
+          dispatch({
+            type: 'REPLACE_AI_MESSAGE',
+            payload: { 
+              oldMessageId: aiMessageToReplace.id, 
+              newMessageId: newAiMessageId, 
+              newText: response.reply, 
+              requiresImageGeneration: response.requiresImageGeneration 
+            },
+          });
+        } else {
+          // If no existing AI message, add a new one
+          dispatch({
+            type: 'ADD_AI_RESPONSE',
+            payload: { 
+              id: newAiMessageId, 
+              text: response.reply, 
+              requiresImageGeneration: response.requiresImageGeneration 
+            },
+          });
+        }
+
+        setCurrentSessionId(response.sessionId);
+
+        // Handle image generation if needed
+        if (response.requiresImageGeneration) {
+          const imageResponse = await generateAndUploadImage(response.aiMessageId);
+          if (imageResponse) {
+            dispatch({
+              type: 'UPDATE_IMAGE_URL',
+              payload: { messageId: newAiMessageId, imageUrl: imageResponse.imageUrl },
+            });
+          } else {
+            console.error('Image generation failed for edited message ID:', newAiMessageId);
+            dispatch({
+              type: 'UPDATE_IMAGE_URL',
+              payload: { messageId: newAiMessageId, imageUrl: '' },
+            });
+          }
+        }
+      }
+    },
+    [isLoading, characterId, editAndRegenerate, messages, generateAndUploadImage, dispatch]
+  );
+
+  const handleRegenerateAi = useCallback(
+    async (messageId: string) => {
+      if (isLoading || !characterId) return;
+
+      const messageIdAsNumber = parseInt(messageId, 10);
+      if (isNaN(messageIdAsNumber)) return;
+
+      const response = await regenerateAi(messageIdAsNumber);
+
+      if (response) {
+        // Replace the old AI message with the new one
+        const newMessageId = response.aiMessageId.toString();
+        dispatch({
+          type: 'REPLACE_AI_MESSAGE',
+          payload: { 
+            oldMessageId: messageId, 
+            newMessageId, 
+            newText: response.reply, 
+            requiresImageGeneration: response.requiresImageGeneration 
+          },
+        });
+
+        setCurrentSessionId(response.sessionId);
+
+        // Handle image generation if needed
+        if (response.requiresImageGeneration) {
+          const imageResponse = await generateAndUploadImage(response.aiMessageId);
+          if (imageResponse) {
+            dispatch({
+              type: 'UPDATE_IMAGE_URL',
+              payload: { messageId: newMessageId, imageUrl: imageResponse.imageUrl },
+            });
+          } else {
+            console.error('Image generation failed for regenerated AI message ID:', newMessageId);
+            dispatch({
+              type: 'UPDATE_IMAGE_URL',
+              payload: { messageId: newMessageId, imageUrl: '' },
+            });
+          }
+        }
+      }
+    },
+    [isLoading, characterId, regenerateAi, generateAndUploadImage, dispatch]
   );
 
   const handleRetry = useCallback(
@@ -298,6 +469,8 @@ function ChatPage() {
         isLoading={isSendingMessage}
         onRetry={handleRetry}
         onGenerateImage={handleGenerateImageForMessage}
+        onEditMessage={handleEditMessage}
+        onRegenerateAi={handleRegenerateAi}
       />
       <ChatInput
         value={inputValue}
