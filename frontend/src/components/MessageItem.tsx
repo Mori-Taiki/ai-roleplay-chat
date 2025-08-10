@@ -42,7 +42,7 @@ const MessageItem: React.FC<MessageItemProps> = ({
   const showRetryButton = message.sender === 'user' && isLatestUserMessage && message.isError;
   
   // 編集ボタンは最新のユーザーメッセージかつエラーがない場合（送信成功済み）のみ表示
-  const showEditButton = message.sender === 'user' && isLatestUserMessage && !message.isError && !isEditing;
+  const showEditButton = message.sender === 'user' && isLatestUserMessage && message.isError !== true && !isEditing;
 
   // 再生成ボタンは最新のAIメッセージのみ表示
   const showRegenerateButton = message.sender === 'ai' && isLatestAiMessage;

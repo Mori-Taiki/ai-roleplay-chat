@@ -464,7 +464,9 @@ public class ChatController : BaseApiController
             _logger.LogInformation("Image generation tag detected for regenerated AI message {MessageId}.", aiMessageId);
         }
 
-        // Create a new AI message instead of updating the existing one
+        // Remove the old AI message and create a new one to maintain consistency
+        _context.ChatMessages.Remove(aiMessage);
+        
         var newAiMessage = new ChatMessage
         {
             SessionId = aiMessage.SessionId,
