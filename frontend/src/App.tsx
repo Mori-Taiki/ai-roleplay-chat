@@ -1,4 +1,3 @@
-// App.tsx (修正案)
 import React from 'react';
 // ★ Outlet を react-router-dom からインポート
 import { Routes, Route, Link, Outlet} from 'react-router-dom';
@@ -8,6 +7,7 @@ import CharacterListPage from './pages/CharacterListPage';
 import CharacterSetupPage from './pages/CharacterSetupPage';
 import SettingsPage from './pages/SettingsPage';
 import SessionListPage from './pages/SessionListPage';
+import CharacterImagesPage from './pages/CharacterImagesPage';
 import { AuthStatus } from './components/AuthStatus'; // AuthStatus をインポート
 
 const AppLayout: React.FC = () => {
@@ -55,6 +55,7 @@ function App() {
           <Route path="characters/new" element={<CharacterSetupPage />} />
           <Route path="characters/edit/:id" element={<CharacterSetupPage />} />
           <Route path="characters/:id/sessions" element={<SessionListPage />} />
+          <Route path="characters/:characterId/images" element={<CharacterImagesPage />} />
           <Route path="chat/:id" element={<ChatPage />} />
           <Route path="chat/:characterId/:sessionId" element={<ChatPage />} />
           <Route path="settings" element={<SettingsPage />} />

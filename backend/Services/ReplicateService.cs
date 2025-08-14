@@ -66,6 +66,15 @@ public class ReplicateService : IImagenService
     /// </summary>
     public async Task<(byte[]? ImageBytes, string? MimeType)?> GenerateImageAsync(string prompt, int? userId = null, CancellationToken cancellationToken = default)
     {
+        var result = await GenerateImageWithDetailsAsync(prompt, userId, cancellationToken);
+        return result != null ? (result.ImageBytes, result.MimeType) : null;
+    }
+
+    /// <summary>
+    /// Replicateで画像を生成し、詳細な結果情報を返します。
+    /// </summary>
+    public async Task<ImageGenerationResult?> GenerateImageWithDetailsAsync(string prompt, int? userId = null, CancellationToken cancellationToken = default)
+    {
         string apiKey = _defaultApiKey;
         string modelVersion = _modelVersion;
 
@@ -88,7 +97,11 @@ public class ReplicateService : IImagenService
         var httpClient = _httpClientFactory.CreateClient();
         httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
 
-        string? pollingUrl = await StartPredictionAsync(httpClient, prompt, modelVersion, cancellationToken);
+        // Create the final prompt with negative prompt
+        var finalPrompt = prompt;
+        var actualPromptUsed = finalPrompt;
+
+        string? pollingUrl = await StartPredictionAsync(httpClient, finalPrompt, modelVersion, cancellationToken);
         if (string.IsNullOrEmpty(pollingUrl))
         {
             _logger.LogError("Failed to start prediction or get polling URL.");
@@ -116,7 +129,14 @@ public class ReplicateService : IImagenService
             var mimeType = imageResponse.Content.Headers.ContentType?.ToString() ?? "image/png"; // 不明な場合はpngに
 
             _logger.LogInformation("Image downloaded successfully. Size: {Size} bytes, MimeType: {MimeType}", imageBytes.Length, mimeType);
-            return (imageBytes, mimeType);
+            
+            return new ImageGenerationResult(
+                ImageBytes: imageBytes,
+                MimeType: mimeType,
+                ModelId: modelVersion,
+                ServiceName: "Replicate",
+                ActualPrompt: actualPromptUsed
+            );
         }
         catch (Exception ex)
         {

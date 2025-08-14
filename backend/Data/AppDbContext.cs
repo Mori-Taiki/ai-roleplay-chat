@@ -48,6 +48,10 @@ public class AppDbContext : DbContext
             entity.HasIndex(e => new { e.SessionId, e.UserId, e.Sender, e.Timestamp })
                   .HasDatabaseName("IX_ChatMessages_SessionId_UserId_Sender_Timestamp");
 
+            // 画像ギャラリー用インデックス (UserId, CharacterProfileId, ChatSessionId, CreatedAt DESC)
+            entity.HasIndex(e => new { e.UserId, e.CharacterProfileId, e.SessionId, e.CreatedAt })
+                  .HasDatabaseName("IX_ChatMessages_User_Character_Session_CreatedAt");
+
             // リレーションシップ (ChatSession)
             entity.HasOne(d => d.Session)
                   .WithMany(p => p.Messages)
