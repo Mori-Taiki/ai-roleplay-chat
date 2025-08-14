@@ -72,15 +72,18 @@ export const useImageApi = (): UseImageApiReturn => {
         throw new Error('Authentication failed');
       }
 
-      const url = new URL(`${import.meta.env.VITE_API_BASE_URL}/api/Image`);
-      url.searchParams.append('characterId', characterId.toString());
+      const baseUrl = import.meta.env.VITE_API_URL || '';
+      const queryParams = new URLSearchParams({
+        characterId: characterId.toString(),
+        page: requestedPage.toString(),
+        pageSize: requestedPageSize.toString(),
+      });
       if (sessionId) {
-        url.searchParams.append('sessionId', sessionId);
+        queryParams.append('sessionId', sessionId);
       }
-      url.searchParams.append('page', requestedPage.toString());
-      url.searchParams.append('pageSize', requestedPageSize.toString());
+      const fullUrl = `${baseUrl}/api/Image?${queryParams.toString()}`;
 
-      const response = await fetch(url.toString(), {
+      const response = await fetch(fullUrl, {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -119,7 +122,8 @@ export const useImageApi = (): UseImageApiReturn => {
         throw new Error('Authentication failed');
       }
 
-      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/Image/${messageId}`, {
+      const baseUrl = import.meta.env.VITE_API_URL || '';
+      const response = await fetch(`${baseUrl}/api/Image/${messageId}`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -154,7 +158,8 @@ export const useImageApi = (): UseImageApiReturn => {
         throw new Error('Authentication failed');
       }
 
-      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/Sessions/character/${characterId}/summary`, {
+      const baseUrl = import.meta.env.VITE_API_URL || '';
+      const response = await fetch(`${baseUrl}/api/Sessions/character/${characterId}/summary`, {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${token}`,
