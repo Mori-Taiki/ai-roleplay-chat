@@ -21,7 +21,7 @@
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;
-  opacity: 0.1; /* 薄く表示 */
+  opacity: 0.4; /* 薄く表示 */
   pointer-events: none; /* クリックイベントを無効化 */
   z-index: 0;
 }

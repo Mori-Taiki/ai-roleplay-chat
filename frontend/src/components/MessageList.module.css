@@ -5,9 +5,7 @@
     padding: 1rem;
     display: flex;
     flex-direction: column; /* メッセージを縦に並べる */
-    background-color: rgba(213, 226, 229, 0.8); /* チャット背景色を半透明に */
-    border: 1px solid #ccc;
-    margin-bottom: 1rem;
+    background-color: transparent;
     position: relative; /* z-indexのため */
     z-index: 1; /* 背景画像の上に表示 */
   }
