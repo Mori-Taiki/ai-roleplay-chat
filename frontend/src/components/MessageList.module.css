@@ -5,9 +5,9 @@
     padding: 1rem;
     display: flex;
     flex-direction: column; /* メッセージを縦に並べる */
-    background-color: #d5e2e5; /* チャット背景色 (例) */
-    border: 1px solid #ccc;
-    margin-bottom: 1rem;
+    background-color: transparent;
+    position: relative; /* z-indexのため */
+    z-index: 1; /* 背景画像の上に表示 */
   }
   
   /* MessageItem からインポートするか、ここに定義 */

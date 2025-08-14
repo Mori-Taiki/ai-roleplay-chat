@@ -125,6 +125,19 @@
   background: rgba(220, 53, 69, 1);
 }
 
+.setAvatarButton {
+  background: rgba(40, 167, 69, 0.8);
+}
+
+.setAvatarButton:hover {
+  background: rgba(40, 167, 69, 1);
+}
+
+.setAvatarButton:disabled {
+  background: rgba(108, 117, 125, 0.8);
+  cursor: not-allowed;
+}
+
 .imageInfo {
   padding: 12px;
 }

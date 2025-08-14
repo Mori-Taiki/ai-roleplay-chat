@@ -6,6 +6,8 @@
     border-top: 1px solid #ccc;
     background-color: #f8f9fa;
     gap: 0.5rem; /* ★ 要素間のgapを追加 */
+    position: relative; /* z-indexのため */
+    z-index: 1; /* 背景画像の上に表示 */
 }
   
 /* ★ .input を .textarea に変更し、スタイルを調整 */

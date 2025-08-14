@@ -444,7 +444,14 @@ function ChatPage() {
   }
 
   return (
-    <div className={styles.pageContainer}>
+    <div 
+      className={styles.pageContainer}
+      style={{
+        '--background-image': character?.avatarImageUrl 
+          ? `url(${character.avatarImageUrl})` 
+          : 'none'
+      } as React.CSSProperties}
+    >
       <h1>
         {isLoadingCharacter ? 'キャラクター情報読み込み中...' : `${character?.name ?? '不明なキャラクター'} `}
         <img

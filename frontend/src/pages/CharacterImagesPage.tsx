@@ -70,7 +70,9 @@ const CharacterImagesPage: React.FC = () => {
     error,
   } = useImageApi();
 
-  const { character, isLoading: isLoadingCharacter, fetchCharacter } = useCharacterProfile();
+  const { character, isLoading: isLoadingCharacter, fetchCharacter, updateCharacter } = useCharacterProfile();
+
+  const [isSettingAvatar, setIsSettingAvatar] = useState<number | null>(null);
 
   const numericCharacterId = characterId ? parseInt(characterId) : 0;
 
@@ -124,6 +126,32 @@ const CharacterImagesPage: React.FC = () => {
   const handleCloseModal = () => {
     setIsModalOpen(false);
     setSelectedImage(null);
+  };
+
+  const handleSetAsAvatar = async (imageUrl: string, messageId: number) => {
+    if (!character) return;
+
+    setIsSettingAvatar(messageId);
+    
+    // Update the character with the new avatar URL
+    const success = await updateCharacter(numericCharacterId, {
+      name: character.name,
+      personality: character.personality || '',
+      tone: character.tone || '',
+      backstory: character.backstory || '',
+      systemPrompt: character.systemPrompt,
+      exampleDialogue: character.exampleDialogue || '',
+      avatarImageUrl: imageUrl,
+      isActive: character.isActive,
+      isSystemPromptCustomized: character.isSystemPromptCustomized,
+    });
+
+    if (success) {
+      // Refresh the character details to show the new avatar
+      await fetchCharacter(numericCharacterId);
+    }
+    
+    setIsSettingAvatar(null);
   };
 
   const totalPages = Math.ceil(total / pageSize);
@@ -201,6 +229,14 @@ const CharacterImagesPage: React.FC = () => {
                       title="プロンプトを表示"
                     >
                       詳細
+                    </button>
+                    <button
+                      className={`${styles.actionButton} ${styles.setAvatarButton}`}
+                      onClick={() => handleSetAsAvatar(image.imageUrl, image.messageId)}
+                      disabled={isSettingAvatar === image.messageId}
+                      title="この画像をアバターに設定"
+                    >
+                      {isSettingAvatar === image.messageId ? '設定中...' : 'アイコンにする'}
                     </button>
                     <button
                       className={`${styles.actionButton} ${styles.deleteButton}`}
