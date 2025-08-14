@@ -180,14 +180,51 @@ public class GeminiService : IGeminiService // IGeminiService インターフェ
             MaxOutputTokens = _config.GetValue<int?>("Gemini:TranslationMaxOutputTokens") ?? 256
         };
 
-        string imagePromptInstruction =
+        // Get user-specific image prompt instruction or use default
+        string imagePromptInstructionTemplate = await GetUserSpecificImagePromptInstructionAsync(userId);
+        
+        // Replace character placeholders in the instruction template
+        string imagePromptInstruction = imagePromptInstructionTemplate
+            .Replace("{character.Name}", character.Name)
+            .Replace("{character.Personality}", character.Personality)
+            .Replace("{character.Backstory}", character.Backstory);
+
+        const int MaxHistoryCount = 6;
+
+        // CallGeminiApiAsyncを呼び出す
+        // systemPromptとして新しい指示を渡し、ユーザープロンプトは空でOK
+        return await CallGeminiApiAsync(model, "", imagePromptInstruction, history, MaxHistoryCount, generationConfig, userId, cancellationToken);
+    }
+
+    private async Task<string> GetUserSpecificModelAsync(int? userId, string settingKey, string defaultValue)
+    {
+        if (!userId.HasValue)
+        {
+            return defaultValue;
+        }
+
+        var userSettings = await _userSettingsService.GetUserSettingsAsync(userId.Value);
+        var modelSetting = userSettings.FirstOrDefault(s => s.ServiceType == "Gemini" && s.SettingKey == settingKey);
+
+        if (modelSetting != null && !string.IsNullOrEmpty(modelSetting.SettingValue))
+        {
+            return modelSetting.SettingValue;
+        }
+
+        return defaultValue;
+    }
+
+    private async Task<string> GetUserSpecificImagePromptInstructionAsync(int? userId)
+    {
+        // Default instruction template with placeholders
+        string defaultInstruction = 
             "You are an expert in creating high-quality, Danbooru-style prompts for the Animagine XL 3.1 image generation model. " +
             "Based on the provided Character Profile and conversation history, generate a single, concise English prompt.\n\n" +
 
-            $"## Character Profile:\n" +
-            $"- Name: {character.Name}\n" +
-            $"- Personality & Appearance: {character.Personality}\n" +
-            $"- Backstory & Other traits: {character.Backstory}\n\n" +
+            "## Character Profile:\n" +
+            "- Name: {character.Name}\n" +
+            "- Personality & Appearance: {character.Personality}\n" +
+            "- Backstory & Other traits: {character.Backstory}\n\n" +
 
             "## Prompt Generation Rules:\n" +
             "1. **Tag-Based Only:** The entire prompt must be a series of comma-separated tags.\n" +
@@ -211,28 +248,19 @@ public class GeminiService : IGeminiService // IGeminiService インターフェ
             "## Example Output:\n" +
             "masterpiece, best quality, very aesthetic, absurdres, safe, newest, 1girl, amelia, from_my_novel, long blonde hair, blue eyes, smiling, wearing a school uniform, sitting on a park bench, sunny day, cherry blossoms";
 
-            const int MaxHistoryCount = 6;
-
-        // CallGeminiApiAsyncを呼び出す
-        // systemPromptとして新しい指示を渡し、ユーザープロンプトは空でOK
-        return await CallGeminiApiAsync(model, "", imagePromptInstruction, history, MaxHistoryCount, generationConfig, userId, cancellationToken);
-    }
-
-    private async Task<string> GetUserSpecificModelAsync(int? userId, string settingKey, string defaultValue)
-    {
         if (!userId.HasValue)
         {
-            return defaultValue;
+            return defaultInstruction;
         }
 
         var userSettings = await _userSettingsService.GetUserSettingsAsync(userId.Value);
-        var modelSetting = userSettings.FirstOrDefault(s => s.ServiceType == "Gemini" && s.SettingKey == settingKey);
+        var instructionSetting = userSettings.FirstOrDefault(s => s.ServiceType == "Gemini" && s.SettingKey == "ImagePromptInstruction");
 
-        if (modelSetting != null && !string.IsNullOrEmpty(modelSetting.SettingValue))
+        if (instructionSetting != null && !string.IsNullOrEmpty(instructionSetting.SettingValue))
         {
-            return modelSetting.SettingValue;
+            return instructionSetting.SettingValue;
         }
 
-        return defaultValue;
+        return defaultInstruction;
     }
 }

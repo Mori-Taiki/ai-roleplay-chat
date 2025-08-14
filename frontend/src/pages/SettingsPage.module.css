@@ -48,15 +48,19 @@
 }
 
 .formField input,
-.formField select {
+.formField select,
+.formField textarea {
   padding: 0.75rem;
   border: 1px solid #ccc;
   border-radius: 4px;
   font-size: 1rem;
+  font-family: inherit;
+  resize: vertical;
 }
 
 .formField input:focus,
-.formField select:focus {
+.formField select:focus,
+.formField textarea:focus {
   outline: none;
   border-color: #007bff;
   box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
@@ -70,6 +74,13 @@
 .fieldError {
   color: #dc3545;
   font-size: 0.875rem;
+}
+
+.fieldDescription {
+  color: #666;
+  font-size: 0.875rem;
+  line-height: 1.4;
+  margin-top: 0.25rem;
 }
 
 .primaryButton {

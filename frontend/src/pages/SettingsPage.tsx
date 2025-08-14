@@ -10,6 +10,7 @@ interface ModelSettingsForm {
   geminiChatModel: string;
   geminiImagePromptModel: string;
   replicateImageModel: string;
+  geminiImagePromptInstruction: string;
 }
 
 interface ApiKeyForm {
@@ -58,6 +59,9 @@ const SettingsPage: React.FC = () => {
             ?.settingValue || '',
         replicateImageModel:
           settings.find((s) => s.serviceType === 'Replicate' && s.settingKey === 'ImageGenerationVersion')
+            ?.settingValue || '',
+        geminiImagePromptInstruction:
+          settings.find((s) => s.serviceType === 'Gemini' && s.settingKey === 'ImagePromptInstruction')
             ?.settingValue || '',
       });
     }
@@ -114,6 +118,7 @@ const SettingsPage: React.FC = () => {
       { serviceType: 'Gemini', settingKey: 'ChatModel', settingValue: data.geminiChatModel },
       { serviceType: 'Gemini', settingKey: 'ImagePromptGenerationModel', settingValue: data.geminiImagePromptModel },
       { serviceType: 'Replicate', settingKey: 'ImageGenerationVersion', settingValue: data.replicateImageModel },
+      { serviceType: 'Gemini', settingKey: 'ImagePromptInstruction', settingValue: data.geminiImagePromptInstruction },
     ];
 
     const success = await updateUserSettings(settingsToUpdate);
@@ -252,6 +257,19 @@ const SettingsPage: React.FC = () => {
               placeholder="例: ac732df83cea7fff18b8472768c88ad041fa750ff7682a21affe81863cbe77e4"
               {...modelSettingsForm.register('replicateImageModel')}
             />
+          </div>
+
+          <div className={styles.formField}>
+            <label htmlFor="geminiImagePromptInstruction">Gemini (画像プロンプト生成指示)</label>
+            <textarea
+              id="geminiImagePromptInstruction"
+              rows={10}
+              placeholder="画像プロンプト生成時の指示を入力してください。{character.Name}、{character.Personality}、{character.Backstory}のプレースホルダーを使用できます。空欄の場合はシステムのデフォルト指示が使用されます。"
+              {...modelSettingsForm.register('geminiImagePromptInstruction')}
+            />
+            <p className={styles.fieldDescription}>
+              この指示は画像生成用プロンプトを作成する際にGeminiに送信されます。使用する画像生成モデルに応じてカスタマイズしてください。
+            </p>
           </div>
 
           <button type="submit" disabled={isLoading} className={styles.primaryButton}>
