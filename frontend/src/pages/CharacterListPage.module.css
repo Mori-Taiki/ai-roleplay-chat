@@ -23,9 +23,9 @@
 
 .avatar,
 .avatarPlaceholder {
-  height: 40px;
-  width: 40px; /* 幅を指定して正方形に */
-  border-radius: 50%;
+  height: 72px;
+  width: 72px; /* 幅を指定して正方形に */
+  border-radius: 0; /* 四角にする */
   flex-shrink: 0;
 }
 
