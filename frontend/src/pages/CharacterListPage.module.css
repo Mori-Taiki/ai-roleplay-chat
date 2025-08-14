@@ -23,8 +23,8 @@
 
 .avatar,
 .avatarPlaceholder {
-  height: 72px;
-  width: 72px; /* 幅を指定して正方形に */
+  height: 88px;
+  width: 88px; /* 幅を指定して正方形に */
   border-radius: 0; /* 四角にする */
   flex-shrink: 0;
 }
@@ -102,5 +102,10 @@
   
   .characterName {
     font-size: 0.95rem; /* Slightly smaller name on mobile */
+  }
+  .avatar,
+  .avatarPlaceholder {
+    height: 120px;
+    width: 120px;
   }
 }
