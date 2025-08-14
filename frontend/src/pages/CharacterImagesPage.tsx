@@ -74,28 +74,6 @@ const CharacterImagesPage: React.FC = () => {
 
   const numericCharacterId = characterId ? parseInt(characterId) : 0;
 
-  // Load character profile
-  useEffect(() => {
-    if (numericCharacterId > 0) {
-      fetchCharacter(numericCharacterId);
-    }
-  }, [numericCharacterId, fetchCharacter]);
-
-  // Load sessions and initial images
-  useEffect(() => {
-    if (numericCharacterId > 0) {
-      getSessionsByCharacter(numericCharacterId);
-      loadImages();
-    }
-  }, [numericCharacterId]);
-
-  // Reload images when filters change
-  useEffect(() => {
-    if (numericCharacterId > 0) {
-      loadImages();
-    }
-  }, [selectedSessionId, currentPage]);
-
   const loadImages = useCallback(() => {
     if (numericCharacterId > 0) {
       getImages(
@@ -106,6 +84,25 @@ const CharacterImagesPage: React.FC = () => {
       );
     }
   }, [numericCharacterId, selectedSessionId, currentPage, getImages]);
+
+  // Load character profile
+  useEffect(() => {
+    if (numericCharacterId > 0) {
+      fetchCharacter(numericCharacterId);
+    }
+  }, [numericCharacterId, fetchCharacter]);
+
+  // Load sessions
+  useEffect(() => {
+    if (numericCharacterId > 0) {
+      getSessionsByCharacter(numericCharacterId);
+    }
+  }, [numericCharacterId, getSessionsByCharacter]);
+
+  // Load images whenever the character or filters change
+  useEffect(() => {
+    loadImages();
+  }, [loadImages]);
 
   const handleDeleteImage = async (messageId: number) => {
     if (window.confirm('この画像を削除しますか？')) {
