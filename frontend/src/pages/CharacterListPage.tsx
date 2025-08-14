@@ -62,8 +62,26 @@ const CharacterListPage: React.FC = () => {
                       ) : (
                         <img src={"https://airoleplaychatblobstr.blob.core.windows.net/profile-images/placeholder.png"} alt={char.name} className={styles.avatar} />
                       )}
-                      <div className={styles.nameAndMessage}>
+                      <div className={styles.nameActionsMessage}>
                         <strong className={styles.characterName}>{char.name}</strong>
+                        
+                        {/* アクションボタン */}
+                        <div className={styles.characterActions}>
+                           <Button as={Link} to={`/chat/${char.id}`} variant="secondary" size="sm">会話する</Button>
+                           <Button as={Link} to={`/characters/${char.id}/sessions`} variant="secondary" size="sm">セッション管理</Button>
+                           <Button as={Link} to={`/characters/${char.id}/images`} variant="secondary" size="sm">画像ギャラリー</Button>
+                           <Button as={Link} to={`/characters/edit/${char.id}`} variant="secondary" size="sm">編集</Button>
+                           {/* 削除ボタン (disabled 条件は維持) */}
+                           <Button
+                              variant="danger"
+                              size="sm"
+                              onClick={() => handleDeleteSession(char.sessionId, char.name)}
+                              disabled={!char.sessionId || deletingSessionId === char.sessionId}
+                            >
+                              {deletingSessionId === char.sessionId ? '履歴なし' : '履歴削除'}
+                            </Button>
+                        </div>
+
                         {char.lastMessageSnippet ? (
                           <div
                             className={styles.lastMessageWrapper}
@@ -75,24 +93,6 @@ const CharacterListPage: React.FC = () => {
                           <span className={styles.noMessagesYet}>まだ会話がありません</span>
                         )}
                       </div>
-                    </div>
-
-                    {/* アクションボタン */}
-                    <div className={styles.characterActions}>
-                       <Button as={Link} to={`/chat/${char.id}`} variant="secondary" size="sm">会話する</Button>
-                       <Button as={Link} to={`/characters/${char.id}/sessions`} variant="secondary" size="sm" style={{ marginLeft: '0.5rem' }}>セッション管理</Button>
-                       <Button as={Link} to={`/characters/${char.id}/images`} variant="secondary" size="sm" style={{ marginLeft: '0.5rem' }}>画像ギャラリー</Button>
-                       <Button as={Link} to={`/characters/edit/${char.id}`} variant="secondary" size="sm" style={{ marginLeft: '0.5rem' }}>編集</Button>
-                       {/* 削除ボタン (disabled 条件は維持) */}
-                       <Button
-                          variant="danger"
-                          size="sm"
-                          style={{ marginLeft: '0.5rem' }}
-                          onClick={() => handleDeleteSession(char.sessionId, char.name)}
-                          disabled={!char.sessionId || deletingSessionId === char.sessionId}
-                        >
-                          {deletingSessionId === char.sessionId ? '履歴なし' : '履歴削除'}
-                        </Button>
                     </div>
                   </li>
                 ))
