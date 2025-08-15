@@ -31,6 +31,13 @@ namespace AiRoleplayChat.Backend.Domain.Entities
         [StringLength(2083)] // URLの最大長を考慮
         public string? AvatarImageUrl { get; set; }
 
+        [StringLength(2000)] // 容姿の最大文字数制限
+        [Column(TypeName = "TEXT")]
+        public string? Appearance { get; set; }
+
+        [StringLength(30)] // ユーザー呼称の最大文字数制限
+        public string? UserAppellation { get; set; }
+
         [Required]
         public bool IsActive { get; set; } = true; // デフォルト値を設定
 

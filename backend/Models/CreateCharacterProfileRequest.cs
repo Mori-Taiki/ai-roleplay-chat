@@ -16,5 +16,11 @@ public record CreateCharacterProfileRequest(
     string? ExampleDialogue,
 
     [Url(ErrorMessage = "有効なURLを入力してください。")] // URL形式のバリデーション
-    string? AvatarImageUrl
+    string? AvatarImageUrl,
+
+    [StringLength(2000, ErrorMessage = "容姿は2000文字以内で入力してください。")]
+    string? Appearance,
+
+    [StringLength(30, ErrorMessage = "ユーザーの呼び方は30文字以内で入力してください。")]
+    string? UserAppellation
 );

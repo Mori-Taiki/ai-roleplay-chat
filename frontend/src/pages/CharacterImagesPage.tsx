@@ -142,6 +142,8 @@ const CharacterImagesPage: React.FC = () => {
       systemPrompt: character.systemPrompt,
       exampleDialogue: character.exampleDialogue || '',
       avatarImageUrl: imageUrl,
+      appearance: character.appearance || null,
+      userAppellation: character.userAppellation || null,
       isActive: character.isActive,
       isSystemPromptCustomized: character.isSystemPromptCustomized,
     });

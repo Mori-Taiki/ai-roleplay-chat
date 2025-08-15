@@ -27,6 +27,8 @@ interface CharacterFormData {
   isSystemPromptCustomized: boolean;
   // exampleDialogue: string | null; // useFieldArray 導入時に DialoguePair[] 型に変更
   avatarImageUrl: string | null;
+  appearance: string;
+  userAppellation: string;
   isActive: boolean;
   dialoguePairs: DialoguePairForm[];
 }
@@ -69,6 +71,8 @@ const CharacterSetupPage: React.FC = () => {
       isSystemPromptCustomized: false,
       // exampleDialogue: null, // useFieldArray で管理
       avatarImageUrl: null,
+      appearance: '',
+      userAppellation: '',
       isActive: true,
       dialoguePairs: [], // useFieldArray 用
     },
@@ -118,6 +122,8 @@ const CharacterSetupPage: React.FC = () => {
         systemPrompt: initialCharacterData.systemPrompt ?? null,
         isSystemPromptCustomized: initialCharacterData.isSystemPromptCustomized,
         avatarImageUrl: initialCharacterData.avatarImageUrl ?? null,
+        appearance: initialCharacterData.appearance ?? '',
+        userAppellation: initialCharacterData.userAppellation ?? '',
         isActive: initialCharacterData.isActive,
         dialoguePairs: parsedPairs.map((p) => ({
           user: p.user ?? '',
@@ -158,6 +164,8 @@ const CharacterSetupPage: React.FC = () => {
         isSystemPromptCustomized: formData.isSystemPromptCustomized,
         exampleDialogue: dialogueJsonString,
         avatarImageUrl: formData.avatarImageUrl !== '' ? formData.avatarImageUrl : null,
+        appearance: formData.appearance !== '' ? formData.appearance : null,
+        userAppellation: formData.userAppellation !== '' ? formData.userAppellation : null,
         isActive: formData.isActive,
       };
       const success = await updateCharacter(characterId, requestData); // カスタムフック呼び出し
@@ -177,6 +185,8 @@ const CharacterSetupPage: React.FC = () => {
         // isSystemPromptCustomized は Create リクエストには不要 (バックエンドで判定)
         exampleDialogue: dialogueJsonString,
         avatarImageUrl: formData.avatarImageUrl ?? null,
+        appearance: formData.appearance !== '' ? formData.appearance : null,
+        userAppellation: formData.userAppellation !== '' ? formData.userAppellation : null,
         isActive: formData.isActive, // デフォルト true だが念のため
       };
       const createdCharacter = await createCharacter(requestData); // カスタムフック呼び出し
@@ -255,6 +265,29 @@ const CharacterSetupPage: React.FC = () => {
           errors={errors}
           required
           rows={5}
+        />
+
+        {/* --- 容姿 --- */}
+        <FormField
+          type="textarea"
+          name="appearance"
+          label="容姿"
+          register={register}
+          errors={errors}
+          rows={4}
+          maxLength={2000}
+          placeholder="髪型・髪色、目の色、身長や体格、服装、特徴的なアクセサリーなど"
+        />
+
+        {/* --- ユーザーの呼び方 --- */}
+        <FormField
+          type="text"
+          name="userAppellation"
+          label="ユーザーの呼び方"
+          register={register}
+          errors={errors}
+          maxLength={30}
+          placeholder="ご主人様／先生／マスター など"
         />
 
         {/* --- System Prompt --- */}

@@ -149,7 +149,7 @@ public class ChatController : BaseApiController
         {
             aiReplyTextWithPotentialTag = await _geminiService.GenerateChatResponseAsync(
                 request.Prompt,
-                SystemPromptHelper.AppendImageInstruction(character.SystemPrompt ?? SystemPromptHelper.GenerateDefaultPrompt(character.Name, character.Personality, character.Tone, character.Backstory)),
+                SystemPromptHelper.AppendImageInstruction(character.SystemPrompt ?? SystemPromptHelper.GenerateDefaultPrompt(character.Name, character.Personality, character.Tone, character.Backstory, character.Appearance, character.UserAppellation)),
                 history,
                 appUserId,
                 cancellationToken
@@ -318,7 +318,7 @@ public class ChatController : BaseApiController
         {
             aiReplyTextWithPotentialTag = await _geminiService.GenerateChatResponseAsync(
                 request.NewText,
-                SystemPromptHelper.AppendImageInstruction(character.SystemPrompt ?? SystemPromptHelper.GenerateDefaultPrompt(character.Name, character.Personality, character.Tone, character.Backstory)),
+                SystemPromptHelper.AppendImageInstruction(character.SystemPrompt ?? SystemPromptHelper.GenerateDefaultPrompt(character.Name, character.Personality, character.Tone, character.Backstory, character.Appearance, character.UserAppellation)),
                 history,
                 appUserId,
                 cancellationToken
@@ -439,7 +439,7 @@ public class ChatController : BaseApiController
         {
             aiReplyTextWithPotentialTag = await _geminiService.GenerateChatResponseAsync(
                 userMessage.Text,
-                SystemPromptHelper.AppendImageInstruction(character.SystemPrompt ?? SystemPromptHelper.GenerateDefaultPrompt(character.Name, character.Personality, character.Tone, character.Backstory)),
+                SystemPromptHelper.AppendImageInstruction(character.SystemPrompt ?? SystemPromptHelper.GenerateDefaultPrompt(character.Name, character.Personality, character.Tone, character.Backstory, character.Appearance, character.UserAppellation)),
                 history,
                 appUserId,
                 cancellationToken

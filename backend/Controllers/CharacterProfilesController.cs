@@ -44,7 +44,7 @@ public class CharacterProfilesController : BaseApiController
         {
             // ★ 共通メソッドでデフォルトプロンプトを生成
             baseSystemPrompt = SystemPromptHelper.GenerateDefaultPrompt(
-                request.Name, request.Personality, request.Tone, request.Backstory);
+                request.Name, request.Personality, request.Tone, request.Backstory, request.Appearance, request.UserAppellation);
             isCustomized = false;
             _logger.LogInformation("Generating SystemPrompt based on other fields for character: {CharacterName}", request.Name);
         }
@@ -61,6 +61,8 @@ public class CharacterProfilesController : BaseApiController
             SystemPrompt = baseSystemPrompt,
             ExampleDialogue = request.ExampleDialogue,
             AvatarImageUrl = request.AvatarImageUrl,
+            Appearance = request.Appearance,
+            UserAppellation = request.UserAppellation,
             IsActive = true,
             IsSystemPromptCustomized = isCustomized,
             CreatedAt = DateTime.UtcNow,
@@ -81,7 +83,9 @@ public class CharacterProfilesController : BaseApiController
             newProfile.ExampleDialogue,
             newProfile.AvatarImageUrl,
             newProfile.IsActive,
-            newProfile.IsSystemPromptCustomized
+            newProfile.IsSystemPromptCustomized,
+            newProfile.Appearance,
+            newProfile.UserAppellation
         );
 
         return CreatedAtAction(nameof(GetCharacterProfile), new { id = newProfile.Id }, responseDto);
@@ -163,7 +167,9 @@ public class CharacterProfilesController : BaseApiController
             profile.ExampleDialogue,
             profile.AvatarImageUrl,
             profile.IsActive,
-            profile.IsSystemPromptCustomized
+            profile.IsSystemPromptCustomized,
+            profile.Appearance,
+            profile.UserAppellation
         );
 
         return Ok(response);
@@ -196,7 +202,7 @@ public class CharacterProfilesController : BaseApiController
         {
             // ★ 共通メソッドでデフォルトプロンプトを生成
             baseSystemPrompt = SystemPromptHelper.GenerateDefaultPrompt(
-                request.Name, request.Personality, request.Tone, request.Backstory); // 更新リクエストの値を使う
+                request.Name, request.Personality, request.Tone, request.Backstory, request.Appearance, request.UserAppellation); // 更新リクエストの値を使う
             _logger.LogInformation("Auto-generating SystemPrompt for Character {Id} based on other fields.", id);
         }
 
@@ -211,6 +217,8 @@ public class CharacterProfilesController : BaseApiController
         existingProfile.SystemPrompt = baseSystemPrompt;
         existingProfile.ExampleDialogue = request.ExampleDialogue;
         existingProfile.AvatarImageUrl = request.AvatarImageUrl;
+        existingProfile.Appearance = request.Appearance;
+        existingProfile.UserAppellation = request.UserAppellation;
         existingProfile.IsActive = request.IsActive;
         existingProfile.IsSystemPromptCustomized = request.IsSystemPromptCustomized;
         existingProfile.UpdatedAt = DateTime.UtcNow; // 更新日時を更新
