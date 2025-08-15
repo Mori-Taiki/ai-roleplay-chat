@@ -8,4 +8,6 @@ export interface UpdateCharacterProfileRequest {
     avatarImageUrl: string | null;
     isActive: boolean;
     isSystemPromptCustomized: boolean;
+    appearance: string | null;
+    userAppellation: string | null;
   }

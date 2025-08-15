@@ -10,5 +10,7 @@ public record CharacterProfileResponse(
     string? ExampleDialogue,
     string? AvatarImageUrl,
     bool IsActive,
-    bool IsSystemPromptCustomized
+    bool IsSystemPromptCustomized,
+    string? Appearance,
+    string? UserAppellation
 );

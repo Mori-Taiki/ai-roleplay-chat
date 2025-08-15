@@ -7,4 +7,6 @@ export interface CreateCharacterProfileRequest {
     exampleDialogue: string | null;
     avatarImageUrl: string | null;
     isActive: boolean;
+    appearance: string | null;
+    userAppellation: string | null;
   }

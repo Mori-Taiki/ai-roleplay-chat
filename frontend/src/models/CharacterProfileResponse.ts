@@ -9,6 +9,8 @@ export interface CharacterProfileResponse {
     avatarImageUrl: string | null;
     isActive: boolean;
     isSystemPromptCustomized: boolean;
+    appearance: string | null;
+    userAppellation: string | null;
     // 必要に応じて createdAt や updatedAt も追加
     // createdAt?: string; // APIが文字列で返す場合
     // updatedAt?: string;
@@ -27,5 +29,7 @@ export interface CharacterProfileResponse {
     // セッション情報 (オプショナル)
     sessionId?: string; // Guid?
     lastMessageSnippet?: string; // string?
+    appearance?: string | null;
+    userAppellation?: string | null;
   }
   
