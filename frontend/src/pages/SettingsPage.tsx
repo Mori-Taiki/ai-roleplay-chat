@@ -260,7 +260,7 @@ const SettingsPage: React.FC = () => {
           </div>
 
           <div className={styles.formField}>
-            <label htmlFor="geminiImagePromptInstruction">Gemini (画像プロンプト生成指示)</label>
+            <label htmlFor="geminiImagePromptInstruction">Gemini (画像プロンプト生成用指示)</label>
             
             {/* Visual flow explanation */}
             <div className={styles.flowExplanation}>
@@ -268,21 +268,21 @@ const SettingsPage: React.FC = () => {
               <div className={styles.flowSteps}>
                 <div className={styles.flowStep}>
                   <span className={styles.stepNumber}>1</span>
-                  <span className={styles.stepText}>チャット内容</span>
+                  <span className={styles.stepText}>チャット内容＋キャラクター設定</span>
                 </div>
                 <div className={styles.flowArrow}>→</div>
                 <div className={styles.flowStep}>
                   <span className={styles.stepNumber}>2</span>
-                  <span className={styles.stepText}>Geminiが画像生成用プロンプトを作成</span>
+                  <span className={styles.stepText}>Geminiが画像生成用プロンプト(英語）を作成</span>
                 </div>
                 <div className={styles.flowArrow}>→</div>
                 <div className={styles.flowStep}>
                   <span className={styles.stepNumber}>3</span>
-                  <span className={styles.stepText}>Replicateに英語プロンプトを送信</span>
+                  <span className={styles.stepText}>Replicateにプロンプトを送信</span>
                 </div>
               </div>
               <p className={styles.flowNote}>
-                ※ Replicateでは英語のプロンプトが推奨されます。以下の指示はGeminiが英語プロンプトを生成する際の指針です。
+                ※ ③で送信されるプロンプトを②でGeminiが生成する際にどのような方針で生成すべきかの指示を入力します。
               </p>
             </div>
 
@@ -291,7 +291,7 @@ const SettingsPage: React.FC = () => {
               rows={15}
               placeholder={`画像プロンプト生成時の指示を入力してください。キャラクター情報は自動で追加されます。
 
-例（デフォルト指示の抜粋）:
+例:
 You are an expert in creating high-quality, Danbooru-style prompts for the Animagine XL 3.1 image generation model. Based on the provided Character Profile and conversation history, generate a single, concise English prompt.
 
 ## Prompt Generation Rules:
@@ -321,8 +321,10 @@ masterpiece, best quality, very aesthetic, absurdres, safe, newest, 1girl, ameli
             <div className={styles.fieldDescription}>
               <p><strong>📝 指示作成のポイント:</strong></p>
               <ul>
-                <li>キャラクター情報（名前、性格、背景設定）は自動で追加されるため、プレースホルダーは不要です</li>
+                <li>キャラクター情報（名前、性格、背景、容姿など）は自動で追加されます</li>
                 <li>使用する画像生成モデルに応じて指示をカスタマイズしてください</li>
+                <li>画像生成には英語のプロンプトが推奨されます(生成用の指示プロンプトそのものは英語でなくても構いません)</li>
+                <li>送信されたプロンプトは、画像ギャラリーから各画像の「詳細」ボタンで確認可能です</li>
                 <li>各モデルのREADMEや公式ドキュメントを参考にすると良い結果が得られます</li>
                 <li>異なるモデル（Stable Diffusion、FLUX等）では異なるプロンプト形式が最適です</li>
               </ul>
