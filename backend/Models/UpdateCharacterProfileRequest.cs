@@ -21,5 +21,17 @@ public record UpdateCharacterProfileRequest(
     string? Appearance,
 
     [StringLength(30, ErrorMessage = "ユーザーの呼び方は30文字以内で入力してください。")]
-    string? UserAppellation
+    string? UserAppellation,
+
+    [StringLength(50, ErrorMessage = "テキストモデルプロバイダーは50文字以内で入力してください。")]
+    string? TextModelProvider,
+
+    [StringLength(100, ErrorMessage = "テキストモデルIDは100文字以内で入力してください。")]
+    string? TextModelId,
+
+    [StringLength(50, ErrorMessage = "画像モデルプロバイダーは50文字以内で入力してください。")]
+    string? ImageModelProvider,
+
+    [StringLength(200, ErrorMessage = "画像モデルIDは200文字以内で入力してください。")]
+    string? ImageModelId
 );

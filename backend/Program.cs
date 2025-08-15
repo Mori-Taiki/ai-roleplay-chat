@@ -4,6 +4,12 @@ using Microsoft.EntityFrameworkCore;
 using AiRoleplayChat.Backend.Data;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.Identity.Web;
+using AiRoleplayChat.Backend.Adapters.Image;
+using AiRoleplayChat.Backend.Adapters.Text;
+using AiRoleplayChat.Backend.Application.Ports;
+using AiRoleplayChat.Backend.Application.Prompts;
+using AiRoleplayChat.Backend.Application.Routing;
+using AiRoleplayChat.Backend.Options;
 
 // CORSポリシー名を定義
 var MyAllowSpecificOrigins = "_myAllowSpecificOrigins";
@@ -47,6 +53,21 @@ builder.Services.AddScoped<IChatMessageService, ChatMessageService>();
 builder.Services.AddScoped<IChatSessionService, ChatSessionService>();
 builder.Services.AddScoped<IApiKeyService, ApiKeyService>();
 builder.Services.AddScoped<IUserSettingsService, UserSettingsService>();
+
+// --- Hexagonal Architecture Services ---
+// Configure ProviderOptions
+builder.Services.Configure<ProviderOptions>(
+    builder.Configuration.GetSection(ProviderOptions.SectionName));
+
+// Register Prompt Compiler
+builder.Services.AddScoped<IPromptCompiler, PromptCompiler>();
+
+// Register Adapters as Ports
+builder.Services.AddScoped<ITextModelPort, GeminiTextAdapter>();
+builder.Services.AddScoped<IImageModelPort, ReplicateImageAdapter>();
+
+// Register Router
+builder.Services.AddScoped<ILlmRouter, LlmRouter>();
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(options =>

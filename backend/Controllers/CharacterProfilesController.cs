@@ -63,6 +63,10 @@ public class CharacterProfilesController : BaseApiController
             AvatarImageUrl = request.AvatarImageUrl,
             Appearance = request.Appearance,
             UserAppellation = request.UserAppellation,
+            TextModelProvider = request.TextModelProvider,
+            TextModelId = request.TextModelId,
+            ImageModelProvider = request.ImageModelProvider,
+            ImageModelId = request.ImageModelId,
             IsActive = true,
             IsSystemPromptCustomized = isCustomized,
             CreatedAt = DateTime.UtcNow,
@@ -85,7 +89,11 @@ public class CharacterProfilesController : BaseApiController
             newProfile.IsActive,
             newProfile.IsSystemPromptCustomized,
             newProfile.Appearance,
-            newProfile.UserAppellation
+            newProfile.UserAppellation,
+            newProfile.TextModelProvider,
+            newProfile.TextModelId,
+            newProfile.ImageModelProvider,
+            newProfile.ImageModelId
         );
 
         return CreatedAtAction(nameof(GetCharacterProfile), new { id = newProfile.Id }, responseDto);
@@ -169,7 +177,11 @@ public class CharacterProfilesController : BaseApiController
             profile.IsActive,
             profile.IsSystemPromptCustomized,
             profile.Appearance,
-            profile.UserAppellation
+            profile.UserAppellation,
+            profile.TextModelProvider,
+            profile.TextModelId,
+            profile.ImageModelProvider,
+            profile.ImageModelId
         );
 
         return Ok(response);
@@ -219,6 +231,10 @@ public class CharacterProfilesController : BaseApiController
         existingProfile.AvatarImageUrl = request.AvatarImageUrl;
         existingProfile.Appearance = request.Appearance;
         existingProfile.UserAppellation = request.UserAppellation;
+        existingProfile.TextModelProvider = request.TextModelProvider;
+        existingProfile.TextModelId = request.TextModelId;
+        existingProfile.ImageModelProvider = request.ImageModelProvider;
+        existingProfile.ImageModelId = request.ImageModelId;
         existingProfile.IsActive = request.IsActive;
         existingProfile.IsSystemPromptCustomized = request.IsSystemPromptCustomized;
         existingProfile.UpdatedAt = DateTime.UtcNow; // 更新日時を更新

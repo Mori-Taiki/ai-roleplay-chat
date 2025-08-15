@@ -38,6 +38,34 @@ namespace AiRoleplayChat.Backend.Domain.Entities
         [StringLength(30)] // ユーザー呼称の最大文字数制限
         public string? UserAppellation { get; set; }
 
+        /// <summary>
+        /// Text model provider for this character (e.g., "Gemini", "OpenAI")
+        /// If null, uses user default or system default
+        /// </summary>
+        [StringLength(50)]
+        public string? TextModelProvider { get; set; }
+
+        /// <summary>
+        /// Specific text model ID for this character (e.g., "gemini-1.5-flash-latest")
+        /// If null, uses provider default
+        /// </summary>
+        [StringLength(100)]
+        public string? TextModelId { get; set; }
+
+        /// <summary>
+        /// Image model provider for this character (e.g., "Replicate", "OpenAI")
+        /// If null, uses user default or system default
+        /// </summary>
+        [StringLength(50)]
+        public string? ImageModelProvider { get; set; }
+
+        /// <summary>
+        /// Specific image model ID for this character
+        /// If null, uses provider default
+        /// </summary>
+        [StringLength(200)]
+        public string? ImageModelId { get; set; }
+
         [Required]
         public bool IsActive { get; set; } = true; // デフォルト値を設定
 

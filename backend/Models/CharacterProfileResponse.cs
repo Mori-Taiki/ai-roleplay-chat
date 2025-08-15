@@ -12,5 +12,9 @@ public record CharacterProfileResponse(
     bool IsActive,
     bool IsSystemPromptCustomized,
     string? Appearance,
-    string? UserAppellation
+    string? UserAppellation,
+    string? TextModelProvider,
+    string? TextModelId,
+    string? ImageModelProvider,
+    string? ImageModelId
 );
