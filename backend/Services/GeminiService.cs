@@ -181,13 +181,14 @@ public class GeminiService : IGeminiService // IGeminiService インターフェ
         };
 
         // Get user-specific image prompt instruction or use default
-        string imagePromptInstructionTemplate = await GetUserSpecificImagePromptInstructionAsync(userId);
+        string userInstruction = await GetUserSpecificImagePromptInstructionAsync(userId);
         
-        // Replace character placeholders in the instruction template
-        string imagePromptInstruction = imagePromptInstructionTemplate
-            .Replace("{character.Name}", character.Name)
-            .Replace("{character.Personality}", character.Personality)
-            .Replace("{character.Backstory}", character.Backstory);
+        // Automatically append character information to the instruction
+        string imagePromptInstruction = userInstruction + "\n\n" +
+            "## Character Profile:\n" +
+            $"- Name: {character.Name}\n" +
+            $"- Personality & Appearance: {character.Personality}\n" +
+            $"- Backstory & Other traits: {character.Backstory}\n";
 
         const int MaxHistoryCount = 6;
 
@@ -216,15 +217,10 @@ public class GeminiService : IGeminiService // IGeminiService インターフェ
 
     private async Task<string> GetUserSpecificImagePromptInstructionAsync(int? userId)
     {
-        // Default instruction template with placeholders
+        // Default instruction without character placeholders (character info is added automatically)
         string defaultInstruction = 
             "You are an expert in creating high-quality, Danbooru-style prompts for the Animagine XL 3.1 image generation model. " +
             "Based on the provided Character Profile and conversation history, generate a single, concise English prompt.\n\n" +
-
-            "## Character Profile:\n" +
-            "- Name: {character.Name}\n" +
-            "- Personality & Appearance: {character.Personality}\n" +
-            "- Backstory & Other traits: {character.Backstory}\n\n" +
 
             "## Prompt Generation Rules:\n" +
             "1. **Tag-Based Only:** The entire prompt must be a series of comma-separated tags.\n" +

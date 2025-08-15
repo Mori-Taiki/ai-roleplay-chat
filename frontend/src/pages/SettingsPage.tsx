@@ -261,15 +261,72 @@ const SettingsPage: React.FC = () => {
 
           <div className={styles.formField}>
             <label htmlFor="geminiImagePromptInstruction">Gemini (画像プロンプト生成指示)</label>
+            
+            {/* Visual flow explanation */}
+            <div className={styles.flowExplanation}>
+              <h4>🖼️ 画像生成の流れ</h4>
+              <div className={styles.flowSteps}>
+                <div className={styles.flowStep}>
+                  <span className={styles.stepNumber}>1</span>
+                  <span className={styles.stepText}>チャット内容</span>
+                </div>
+                <div className={styles.flowArrow}>→</div>
+                <div className={styles.flowStep}>
+                  <span className={styles.stepNumber}>2</span>
+                  <span className={styles.stepText}>Geminiが画像生成用プロンプトを作成</span>
+                </div>
+                <div className={styles.flowArrow}>→</div>
+                <div className={styles.flowStep}>
+                  <span className={styles.stepNumber}>3</span>
+                  <span className={styles.stepText}>Replicateに英語プロンプトを送信</span>
+                </div>
+              </div>
+              <p className={styles.flowNote}>
+                ※ Replicateでは英語のプロンプトが推奨されます。以下の指示はGeminiが英語プロンプトを生成する際の指針です。
+              </p>
+            </div>
+
             <textarea
               id="geminiImagePromptInstruction"
-              rows={10}
-              placeholder="画像プロンプト生成時の指示を入力してください。{character.Name}、{character.Personality}、{character.Backstory}のプレースホルダーを使用できます。空欄の場合はシステムのデフォルト指示が使用されます。"
+              rows={15}
+              placeholder={`画像プロンプト生成時の指示を入力してください。キャラクター情報は自動で追加されます。
+
+例（デフォルト指示の抜粋）:
+You are an expert in creating high-quality, Danbooru-style prompts for the Animagine XL 3.1 image generation model. Based on the provided Character Profile and conversation history, generate a single, concise English prompt.
+
+## Prompt Generation Rules:
+1. **Tag-Based Only:** The entire prompt must be a series of comma-separated tags.
+2. **Mandatory Prefixes:** ALWAYS start the prompt with: \`masterpiece, best quality, very aesthetic, absurdres\`.
+3. **Rating Modifier:** Immediately after the prefixes, you MUST add ONE of the following rating tags based on the conversation's context.
+   - \`safe\`: For wholesome or everyday scenes. (This is the default if unsure).
+   - \`sensitive\`: For slightly suggestive content, artistic nudity, swimwear, or mild violence.
+   - \`nsfw\`: For explicit themes, non-explicit nudity, or strong violence.
+   - \`explicit\`: For pornographic content or extreme violence/gore.
+
+4. **Year Modifier (Optional):** If the context suggests a specific era, you can add ONE of the following: \`newest\`, \`recent\`, \`mid\`, \`early\`, \`oldest\`.
+
+5. **Core Content (Tag Order Matters):** Structure the main part in this order:
+   - Subject (e.g., \`1girl\`, \`2boys\`).
+   - Character details from the profile (e.g., \`long blonde hair\`, \`blue eyes\`).
+   - Scene details from the last message (clothing, pose, emotion, background).
+
+6. **Final Output:** Do not include any explanation or markdown. Only the final comma-separated prompt.
+
+## Example Output:
+masterpiece, best quality, very aesthetic, absurdres, safe, newest, 1girl, amelia, from_my_novel, long blonde hair, blue eyes, smiling, wearing a school uniform, sitting on a park bench, sunny day, cherry blossoms
+
+空欄の場合はシステムのデフォルト指示が使用されます。`}
               {...modelSettingsForm.register('geminiImagePromptInstruction')}
             />
-            <p className={styles.fieldDescription}>
-              この指示は画像生成用プロンプトを作成する際にGeminiに送信されます。使用する画像生成モデルに応じてカスタマイズしてください。
-            </p>
+            <div className={styles.fieldDescription}>
+              <p><strong>📝 指示作成のポイント:</strong></p>
+              <ul>
+                <li>キャラクター情報（名前、性格、背景設定）は自動で追加されるため、プレースホルダーは不要です</li>
+                <li>使用する画像生成モデルに応じて指示をカスタマイズしてください</li>
+                <li>各モデルのREADMEや公式ドキュメントを参考にすると良い結果が得られます</li>
+                <li>異なるモデル（Stable Diffusion、FLUX等）では異なるプロンプト形式が最適です</li>
+              </ul>
+            </div>
           </div>
 
           <button type="submit" disabled={isLoading} className={styles.primaryButton}>

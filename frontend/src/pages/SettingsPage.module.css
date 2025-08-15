@@ -83,6 +83,81 @@
   margin-top: 0.25rem;
 }
 
+.fieldDescription ul {
+  margin: 0.5rem 0 0 1rem;
+  padding: 0;
+}
+
+.fieldDescription li {
+  margin-bottom: 0.25rem;
+}
+
+.flowExplanation {
+  background-color: #f8f9fa;
+  border: 1px solid #e9ecef;
+  border-radius: 6px;
+  padding: 1rem;
+  margin-bottom: 1rem;
+}
+
+.flowExplanation h4 {
+  margin: 0 0 0.75rem 0;
+  color: #495057;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.flowSteps {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.flowStep {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background-color: white;
+  padding: 0.5rem 0.75rem;
+  border-radius: 20px;
+  border: 1px solid #dee2e6;
+  font-size: 0.875rem;
+}
+
+.stepNumber {
+  background-color: #007bff;
+  color: white;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.75rem;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.stepText {
+  font-weight: 500;
+  color: #495057;
+}
+
+.flowArrow {
+  color: #6c757d;
+  font-size: 1.2rem;
+  font-weight: bold;
+}
+
+.flowNote {
+  margin: 0;
+  font-size: 0.8rem;
+  color: #6c757d;
+  font-style: italic;
+}
+
 .primaryButton {
   background-color: #007bff;
   color: white;
@@ -205,5 +280,20 @@
   .dangerButton {
     margin-left: 0;
     align-self: flex-end;
+  }
+
+  .flowSteps {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.75rem;
+  }
+
+  .flowArrow {
+    transform: rotate(90deg);
+    align-self: center;
+  }
+
+  .flowStep {
+    justify-content: center;
   }
 }
