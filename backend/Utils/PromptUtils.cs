@@ -6,13 +6,16 @@ public class PromptUtils
     public static class SystemPromptHelper
     {
         // デフォルトプロンプトを生成するメソッド
-        public static string GenerateDefaultPrompt(string name, string? personality, string? tone, string? backstory)
+        // 項目追加時はsystemPrompt生成ロジックも更新する
+        public static string GenerateDefaultPrompt(string name, string? personality, string? tone, string? backstory, string? appearance = null, string? userAppellation = null)
         {
             // Controller にあったロジックをここに移動
             return $"あなたはキャラクター「{name}」です。\n" +
                    $"性格: {personality ?? "未設定"}\n" +
                    $"口調: {tone ?? "未設定"}\n" +
                    $"背景: {backstory ?? "未設定"}\n" +
+                   $"容姿: {appearance ?? "未設定"}\n" +
+                   $"ユーザーの呼び方: {userAppellation ?? "未設定"}\n" +
                    "ユーザーと自然で魅力的な対話を行ってください。";
         }
 

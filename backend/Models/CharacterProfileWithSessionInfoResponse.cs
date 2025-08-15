@@ -16,5 +16,7 @@ namespace AiRoleplayChat.Backend.Models
         public bool IsSystemPromptCustomized { get; set; }
         public string? SessionId { get; set; }
         public string? LastMessageSnippet { get; set; }
+        public string? Appearance { get; set; }
+        public string? UserAppellation { get; set; }
     }
 }
