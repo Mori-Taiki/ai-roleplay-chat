@@ -111,7 +111,7 @@ public class ImageController : BaseApiController // ★ ControllerBaseからBase
                 Prompt: "Generate image description for current conversation",
                 SystemPrompt: imagePromptInstruction,
                 History: chatHistory.TakeLast(6).ToList(), // Limit to recent history
-                MaxTokens: 256,
+                MaxTokens: 2048,
                 Temperature: 0.4,
                 UserId: appUserId
             );
