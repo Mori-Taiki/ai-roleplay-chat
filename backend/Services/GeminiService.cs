@@ -1,5 +1,6 @@
 using AiRoleplayChat.Backend.Domain.Entities;
 using AiRoleplayChat.Backend.Models; // モデルクラスを使う
+using System.Text;
 using System.Text.Json; // JsonSerializerOptions を使う
 
 namespace AiRoleplayChat.Backend.Services; // 名前空間を確認・調整
@@ -181,15 +182,17 @@ public class GeminiService : IGeminiService // IGeminiService インターフェ
         };
 
         // Get user-specific image prompt instruction or use default
+                // Get user-specific image prompt instruction or use default
         string userInstruction = await GetUserSpecificImagePromptInstructionAsync(userId);
         
         // Automatically append character information to the instruction
-        string imagePromptInstruction = userInstruction + "\n\n" +
-            "## Character Profile:\n" +
-            $"- Name: {character.Name}\n" +
-            $"- Personality: {character.Personality}\n" +
-            $"- Appearance: {character.Appearance}\n" +
-            $"- Backstory: {character.Backstory}\n";
+        var sb = new StringBuilder(userInstruction);
+        sb.Append("## Character Profile:");
+        sb.Append("- Name: ").AppendLine(character.Name);
+        sb.Append("- Personality: ").AppendLine(character.Personality);
+        sb.Append("- Appearance: ").AppendLine(character.Appearance);
+        sb.Append("- Backstory: ").AppendLine(character.Backstory);
+        string imagePromptInstruction = sb.ToString();
 
         const int MaxHistoryCount = 6;
 
@@ -219,31 +222,32 @@ public class GeminiService : IGeminiService // IGeminiService インターフェ
     private async Task<string> GetUserSpecificImagePromptInstructionAsync(int? userId)
     {
         // Default instruction without character placeholders (character info is added automatically)
-        string defaultInstruction = 
-            "You are an expert in creating high-quality, Danbooru-style prompts for the Animagine XL 3.1 image generation model. " +
-            "Based on the provided Character Profile and conversation history, generate a single, concise English prompt.\n\n" +
+    var sbDefault = new StringBuilder();
+    sbDefault.Append("You are an expert in creating high-quality, Danbooru-style prompts for the Animagine XL 3.1 image generation model. ");
+    sbDefault.Append("Based on the provided Character Profile and conversation history, generate a single, concise English prompt.\n\n");
 
-            "## Prompt Generation Rules:\n" +
-            "1. **Tag-Based Only:** The entire prompt must be a series of comma-separated tags.\n" +
-            "2. **Mandatory Prefixes:** ALWAYS start the prompt with: `masterpiece, best quality, very aesthetic, absurdres`.\n" +
+    sbDefault.Append("## Prompt Generation Rules:\n");
+    sbDefault.Append("1. **Tag-Based Only:** The entire prompt must be a series of comma-separated tags.\n");
+    sbDefault.Append("2. **Mandatory Prefixes:** ALWAYS start the prompt with: `masterpiece, best quality, very aesthetic, absurdres`.\n");
 
-            "3. **Rating Modifier:** Immediately after the prefixes, you MUST add ONE of the following rating tags based on the conversation's context. \n" +
-            "   - `safe`: For wholesome or everyday scenes. (This is the default if unsure).\n" +
-            "   - `sensitive`: For slightly suggestive content, artistic nudity, swimwear, or mild violence.\n" +
-            "   - `nsfw`: For explicit themes, non-explicit nudity, or strong violence.\n" +
-            "   - `explicit`: For pornographic content or extreme violence/gore. Use this for 'Explicit' level content.\n\n" +
+    sbDefault.Append("3. **Rating Modifier:** Immediately after the prefixes, you MUST add ONE of the following rating tags based on the conversation's context. \n");
+    sbDefault.Append("   - `safe`: For wholesome or everyday scenes. (This is the default if unsure).\n");
+    sbDefault.Append("   - `sensitive`: For slightly suggestive content, artistic nudity, swimwear, or mild violence.\n");
+    sbDefault.Append("   - `nsfw`: For explicit themes, non-explicit nudity, or strong violence.\n");
+    sbDefault.Append("   - `explicit`: For pornographic content or extreme violence/gore. Use this for 'Explicit' level content.\n\n");
 
-            "4. **Year Modifier (Optional):** If the context suggests a specific era (e.g., retro, modern), you can add ONE of the following: `newest`, `recent`, `mid`, `early`, `oldest`.\n" +
+    sbDefault.Append("4. **Year Modifier (Optional):** If the context suggests a specific era (e.g., retro, modern), you can add ONE of the following: `newest`, `recent`, `mid`, `early`, `oldest`.\n");
 
-            "5. **Core Content (Tag Order Matters):** Structure the main part of the prompt in this order:\n" +
-            "   - Subject (e.g., `1girl`, `2boys`).\n" +
-            "   - Character details from the profile (e.g., `long blonde hair`, `blue eyes`).\n" +
-            "   - Scene details from the last message (clothing, pose, emotion, background, e.g., `wearing a school uniform`, `sitting on a park bench`, `smiling`, `night`, `rain`).\n" +
+    sbDefault.Append("5. **Core Content (Tag Order Matters):** Structure the main part of the prompt in this order:\n");
+    sbDefault.Append("   - Subject (e.g., `1girl`, `2boys`).\n");
+    sbDefault.Append("   - Character details from the profile (e.g., `long blonde hair`, `blue eyes`).\n");
+    sbDefault.Append("   - Scene details from the last message (clothing, pose, emotion, background, e.g., `wearing a school uniform`, `sitting on a park bench`, `smiling`, `night`, `rain`).\n");
 
-            "6. **Final Output:** Do not include any explanation or markdown. Only the final comma-separated prompt.\n\n" +
+    sbDefault.Append("6. **Final Output:** Do not include any explanation or markdown. Only the final comma-separated prompt.\n\n");
 
-            "## Example Output:\n" +
-            "masterpiece, best quality, very aesthetic, absurdres, safe, newest, 1girl, amelia, from_my_novel, long blonde hair, blue eyes, smiling, wearing a school uniform, sitting on a park bench, sunny day, cherry blossoms";
+    sbDefault.Append("## Example Output:\n");
+    sbDefault.Append("masterpiece, best quality, very aesthetic, absurdres, safe, newest, 1girl, amelia, from_my_novel, long blonde hair, blue eyes, smiling, wearing a school uniform, sitting on a park bench, sunny day, cherry blossoms");
+    string defaultInstruction = sbDefault.ToString();
 
         if (!userId.HasValue)
         {
