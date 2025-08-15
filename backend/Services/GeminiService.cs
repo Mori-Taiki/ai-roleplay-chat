@@ -187,8 +187,9 @@ public class GeminiService : IGeminiService // IGeminiService インターフェ
         string imagePromptInstruction = userInstruction + "\n\n" +
             "## Character Profile:\n" +
             $"- Name: {character.Name}\n" +
-            $"- Personality & Appearance: {character.Personality}\n" +
-            $"- Backstory & Other traits: {character.Backstory}\n";
+            $"- Personality: {character.Personality}\n" +
+            $"- Appearance: {character.Appearance}\n" +
+            $"- Backstory: {character.Backstory}\n";
 
         const int MaxHistoryCount = 6;
 
