@@ -2,10 +2,9 @@ using AiRoleplayChat.Backend.Data;
 using AiRoleplayChat.Backend.Domain.Entities;
 using AiRoleplayChat.Backend.Models;
 using AiRoleplayChat.Backend.Services;
-using AiRoleplayChat.Backend.Utils;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using static AiRoleplayChat.Backend.Utils.PromptUtils;
+using AiRoleplayChat.Backend.Application.Prompts;
 
 namespace AiRoleplayChat.Backend.Controllers; // プロジェクトの実際の名前空間に合わせてください
 
@@ -13,11 +12,13 @@ namespace AiRoleplayChat.Backend.Controllers; // プロジェクトの実際の�
 public class CharacterProfilesController : BaseApiController
 {
     private readonly AppDbContext _context;
+    private readonly IPromptCompiler _promptCompiler;
 
-    public CharacterProfilesController(AppDbContext context, IUserService userService, ILogger<CharacterProfilesController> logger)
+    public CharacterProfilesController(AppDbContext context, IUserService userService, IPromptCompiler promptCompiler, ILogger<CharacterProfilesController> logger)
         : base(userService, logger)
     {
         _context = context;
+        _promptCompiler = promptCompiler;
     }
 
     // POST: api/characterprofiles
@@ -43,7 +44,7 @@ public class CharacterProfilesController : BaseApiController
         else
         {
             // ★ 共通メソッドでデフォルトプロンプトを生成
-            baseSystemPrompt = SystemPromptHelper.GenerateDefaultPrompt(
+            baseSystemPrompt = _promptCompiler.GenerateDefaultPrompt(
                 request.Name, request.Personality, request.Tone, request.Backstory, request.Appearance, request.UserAppellation);
             isCustomized = false;
             _logger.LogInformation("Generating SystemPrompt based on other fields for character: {CharacterName}", request.Name);
@@ -213,7 +214,7 @@ public class CharacterProfilesController : BaseApiController
         else
         {
             // ★ 共通メソッドでデフォルトプロンプトを生成
-            baseSystemPrompt = SystemPromptHelper.GenerateDefaultPrompt(
+            baseSystemPrompt = _promptCompiler.GenerateDefaultPrompt(
                 request.Name, request.Personality, request.Tone, request.Backstory, request.Appearance, request.UserAppellation); // 更新リクエストの値を使う
             _logger.LogInformation("Auto-generating SystemPrompt for Character {Id} based on other fields.", id);
         }
