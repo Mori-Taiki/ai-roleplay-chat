@@ -8,12 +8,12 @@ import {
 } from 'react-hook-form'; // react-hook-form をインポート
 import { CreateCharacterProfileRequest } from '../models/CreateCharacterProfileRequest';
 import { UpdateCharacterProfileRequest } from '../models/UpdateCharacterProfileRequest';
-import { AiGenerationSettingsRequest } from '../models/AiGenerationSettings';
+import { ModelSettingsFormData } from '../components/ModelSettingsForm';
 import { useCharacterProfile } from '../hooks/useCharacterProfile'; // カスタムフック
 import styles from './CharacterSetupPage.module.css';
 import FormField from '../components/FormField';
 import Button from '../components/Button';
-import AiModelSettingsForm from '../components/AiModelSettingsForm';
+import { ModelSettingsForm } from '../components/ModelSettingsForm';
 
 interface DialoguePairForm {
   user: string;
@@ -33,7 +33,11 @@ interface CharacterFormData {
   userAppellation: string;
   isActive: boolean;
   dialoguePairs: DialoguePairForm[];
-  aiSettings: AiGenerationSettingsRequest | null;
+  // Use the model settings structure instead of AI generation settings
+  geminiChatModel: string;
+  geminiImagePromptModel: string;
+  replicateImageModel: string;
+  geminiImagePromptInstruction: string;
 }
 
 const CharacterSetupPage: React.FC = () => {
@@ -80,7 +84,10 @@ const CharacterSetupPage: React.FC = () => {
       userAppellation: '',
       isActive: true,
       dialoguePairs: [], // useFieldArray 用
-      aiSettings: null,
+      geminiChatModel: '',
+      geminiImagePromptModel: '',
+      replicateImageModel: '',
+      geminiImagePromptInstruction: '',
     },
   });
 
@@ -135,12 +142,11 @@ const CharacterSetupPage: React.FC = () => {
           user: p.user ?? '',
           model: p.model ?? '',
         })), // useFieldArray 用
-        aiSettings: initialCharacterData.aiSettings ? {
-          chatGenerationModel: initialCharacterData.aiSettings.chatGenerationModel,
-          imagePromptGenerationModel: initialCharacterData.aiSettings.imagePromptGenerationModel,
-          imageGenerationModel: initialCharacterData.aiSettings.imageGenerationModel,
-          imageGenerationPromptInstruction: initialCharacterData.aiSettings.imageGenerationPromptInstruction,
-        } : null,
+        // Convert AI settings to model settings format
+        geminiChatModel: initialCharacterData.aiSettings?.chatGenerationModel ?? '',
+        geminiImagePromptModel: initialCharacterData.aiSettings?.imagePromptGenerationModel ?? '',
+        replicateImageModel: initialCharacterData.aiSettings?.imageGenerationModel ?? '',
+        geminiImagePromptInstruction: initialCharacterData.aiSettings?.imageGenerationPromptInstruction ?? '',
       });
     }
   }, [initialCharacterData, reset]); // reset も依存配列に追加推奨
@@ -164,6 +170,18 @@ const CharacterSetupPage: React.FC = () => {
       return;
     }
 
+    // Convert model settings back to AI settings format
+    const aiSettings = (formData.geminiChatModel || formData.geminiImagePromptModel || 
+                       formData.replicateImageModel || formData.geminiImagePromptInstruction) ? {
+      chatGenerationProvider: formData.geminiChatModel ? 'Gemini' : null,
+      chatGenerationModel: formData.geminiChatModel || null,
+      imagePromptGenerationProvider: formData.geminiImagePromptModel ? 'Gemini' : null,
+      imagePromptGenerationModel: formData.geminiImagePromptModel || null,
+      imageGenerationProvider: formData.replicateImageModel ? 'Replicate' : null,
+      imageGenerationModel: formData.replicateImageModel || null,
+      imageGenerationPromptInstruction: formData.geminiImagePromptInstruction || null,
+    } : null;
+
     if (isEditMode && characterId) {
       // --- 更新処理 ---
       const requestData: UpdateCharacterProfileRequest = {
@@ -179,7 +197,7 @@ const CharacterSetupPage: React.FC = () => {
         appearance: formData.appearance !== '' ? formData.appearance : null,
         userAppellation: formData.userAppellation !== '' ? formData.userAppellation : null,
         isActive: formData.isActive,
-        aiSettings: formData.aiSettings,
+        aiSettings: aiSettings,
       };
       const success = await updateCharacter(characterId, requestData); // カスタムフック呼び出し
       if (success) {
@@ -201,7 +219,7 @@ const CharacterSetupPage: React.FC = () => {
         appearance: formData.appearance !== '' ? formData.appearance : null,
         userAppellation: formData.userAppellation !== '' ? formData.userAppellation : null,
         isActive: formData.isActive, // デフォルト true だが念のため
-        aiSettings: formData.aiSettings,
+        aiSettings: aiSettings,
       };
       const createdCharacter = await createCharacter(requestData); // カスタムフック呼び出し
       if (createdCharacter) {
@@ -427,11 +445,11 @@ const CharacterSetupPage: React.FC = () => {
         {/* --- AIモデル設定 --- */}
         <div className={styles.formGroup}>
         {/* AI Model Settings */}
-        <AiModelSettingsForm 
-          aiSettings={getValues('aiSettings')}
-          onSettingsChange={(settings) => setValue('aiSettings', settings)}
+        <ModelSettingsForm 
+          register={register}
+          watch={watch}
+          showToggle={true}
           showFallbackNote={true}
-          showToggleButton={true}
         />
         </div>
 
