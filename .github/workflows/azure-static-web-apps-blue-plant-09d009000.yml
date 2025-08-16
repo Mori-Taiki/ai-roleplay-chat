@@ -13,7 +13,7 @@ jobs:
   build_and_deploy_job:
     if: github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.action != 'closed')
     runs-on: ubuntu-latest
-    name: Build and Deploy Job
+    name: Build and Deploy Frontend Job
     steps:
       - uses: actions/checkout@v3
         with:
@@ -39,6 +39,34 @@ jobs:
           VITE_B2C_KNOWN_AUTHORITIES: ${{ secrets.PRODUCTION_B2C_KNOWN_AUTHORITIES }}
           VITE_B2C_REDIRECT_URI: ${{ secrets.PRODUCTION_B2C_REDIRECT_URI }} # Secret にするか、固定なら直接記述も可
           VITE_B2C_API_SCOPE_URI: ${{ secrets.PRODUCTION_B2C_API_SCOPE_URI }}
+
+  deploy_backend_job:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    name: Build and Deploy Backend Job
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v3
+        with:
+          dotnet-version: '8.0.x'
+          
+      - name: Restore dependencies
+        run: dotnet restore ./backend/backend.csproj
+        
+      - name: Build
+        run: dotnet build ./backend/backend.csproj --no-restore --configuration Release
+        
+      - name: Publish
+        run: dotnet publish ./backend/backend.csproj --no-build --configuration Release --output ./backend/publish
+        
+      - name: Deploy to Azure App Service
+        uses: azure/webapps-deploy@v2
+        with:
+          app-name: ${{ secrets.AZURE_APP_SERVICE_NAME }}
+          publish-profile: ${{ secrets.AZURE_APP_SERVICE_PUBLISH_PROFILE }}
+          package: './backend/publish'
 
   close_pull_request_job:
     if: github.event_name == 'pull_request' && github.event.action == 'closed'
