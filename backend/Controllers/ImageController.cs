@@ -4,6 +4,9 @@ using AiRoleplayChat.Backend.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using AiRoleplayChat.Backend.Application.Routing;
+using AiRoleplayChat.Backend.Application.Contracts;
+using AiRoleplayChat.Backend.Domain.Entities;
 
 namespace AiRoleplayChat.Backend.Controllers;
 
@@ -13,8 +16,7 @@ namespace AiRoleplayChat.Backend.Controllers;
 public class ImageController : BaseApiController // ★ ControllerBaseからBaseApiControllerに変更
 {
     // ★ 必要なサービスをDIで受け取るように変更
-    private readonly IGeminiService _geminiService;
-    private readonly IImagenService _imagenService;
+    private readonly ILlmRouter _llmRouter;
     private readonly IBlobStorageService _blobStorageService;
     private readonly IChatMessageService _chatMessageService;
     private readonly AppDbContext _context;
@@ -22,16 +24,14 @@ public class ImageController : BaseApiController // ★ ControllerBaseからBase
     // ★ コンストラクタを大幅に変更
     public ImageController(
         IUserService userService, // BaseApiControllerに必要
-        IGeminiService geminiService,
-        IImagenService imagenService,
+        ILlmRouter llmRouter,
         IBlobStorageService blobStorageService,
         IChatMessageService chatMessageService,
         AppDbContext context,
         ILogger<ImageController> logger)
         : base(userService, logger) // BaseApiControllerのコンストラクタを呼び出し
     {
-        _geminiService = geminiService;
-        _imagenService = imagenService;
+        _llmRouter = llmRouter;
         _blobStorageService = blobStorageService;
         _chatMessageService = chatMessageService;
         _context = context;
@@ -93,11 +93,32 @@ public class ImageController : BaseApiController // ★ ControllerBaseからBase
             return Problem("画像生成の元となる会話履歴が見つかりませんでした。");
         }
 
-        // 3. Geminiにプロンプト生成を依頼 
+        // 3. Generate English prompt using text model through hexagonal architecture
         string englishPrompt;
         try
         {
-            englishPrompt = await _geminiService.GenerateImagePromptAsync(character, history, appUserId, cancellationToken);
+            // Convert chat history to ChatTurn format for text model
+            var chatHistory = ConvertToChatTurns(history);
+            
+            // Resolve text model for prompt generation
+            var textModel = await _llmRouter.ResolveTextModelAsync(character, appUserId);
+            
+            // Create image prompt instruction
+            var imagePromptInstruction = BuildImagePromptInstruction(character);
+            
+            // Create text request for image prompt generation
+            var promptRequest = new TextRequest(
+                Prompt: "Generate image description for current conversation",
+                SystemPrompt: imagePromptInstruction,
+                History: chatHistory.TakeLast(6).ToList(), // Limit to recent history
+                MaxTokens: 2048,
+                Temperature: 0.4,
+                UserId: appUserId
+            );
+            
+            var promptCompletion = await textModel.GenerateTextAsync(promptRequest, cancellationToken);
+            englishPrompt = promptCompletion.Text.Trim();
+            
             _logger.LogInformation("Generated image prompt for MessageId {MessageId}: '{Prompt}'", request.MessageId, englishPrompt);
         }
         catch (Exception ex)
@@ -106,9 +127,43 @@ public class ImageController : BaseApiController // ★ ControllerBaseからBase
             return Problem("AIによる画像プロンプトの生成に失敗しました。");
         }
 
-        // 4. 画像生成サービスを呼び出し
-        var generationResult = await _imagenService.GenerateImageWithDetailsAsync(englishPrompt, appUserId, cancellationToken);
-        if (generationResult is not { ImageBytes: not null, MimeType: not null })
+        // 4. Generate image using image model through hexagonal architecture
+        byte[]? imageBytes = null;
+        string? mimeType = null;
+        string? actualPrompt = null;
+        string? modelId = null;
+        string? serviceName = null;
+        
+        try
+        {
+            // Resolve image model
+            var imageModel = await _llmRouter.ResolveImageModelAsync(character, appUserId);
+            
+            // Create image request
+            var imageRequest = new ImageRequest(
+                Prompt: englishPrompt,
+                UserId: appUserId
+            );
+            
+            // Generate image
+            var imageResult = await imageModel.GenerateImageAsync(imageRequest, cancellationToken);
+            
+            if (imageResult != null)
+            {
+                imageBytes = imageResult.ImageBytes;
+                mimeType = imageResult.MimeType;
+                actualPrompt = imageResult.ActualPrompt;
+                modelId = imageResult.ModelId;
+                serviceName = imageResult.ServiceName;
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to generate image for MessageId {MessageId}", request.MessageId);
+            return Problem("画像生成に失敗しました。");
+        }
+        
+        if (imageBytes == null || mimeType == null)
         {
             return Problem("画像データの生成に失敗しました。");
         }
@@ -118,8 +173,8 @@ public class ImageController : BaseApiController // ★ ControllerBaseからBase
         string imageUrl;
         try
         {
-            using var imageStream = new MemoryStream(generationResult.ImageBytes);
-            imageUrl = await _blobStorageService.UploadAsync(imageStream, blobName, generationResult.MimeType, cancellationToken);
+            using var imageStream = new MemoryStream(imageBytes);
+            imageUrl = await _blobStorageService.UploadAsync(imageStream, blobName, mimeType, cancellationToken);
         }
         catch (Exception ex)
         {
@@ -132,13 +187,13 @@ public class ImageController : BaseApiController // ★ ControllerBaseからBase
         if (messageToUpdate != null)
         {
             messageToUpdate.ImageUrl = imageUrl;
-            messageToUpdate.ImagePrompt = generationResult.ActualPrompt;
-            messageToUpdate.ModelId = generationResult.ModelId;
-            messageToUpdate.ServiceName = generationResult.ServiceName;
+            messageToUpdate.ImagePrompt = actualPrompt;
+            messageToUpdate.ModelId = modelId;
+            messageToUpdate.ServiceName = serviceName;
             messageToUpdate.UpdatedAt = DateTime.UtcNow;
             await _context.SaveChangesAsync(cancellationToken);
             _logger.LogInformation("Successfully updated MessageId {MessageId} with ImageUrl: {ImageUrl}, ModelId: {ModelId}, ServiceName: {ServiceName}", 
-                request.MessageId, imageUrl, generationResult.ModelId, generationResult.ServiceName);
+                request.MessageId, imageUrl, modelId, serviceName);
         }
         else
         {
@@ -243,5 +298,54 @@ public class ImageController : BaseApiController // ★ ControllerBaseからBase
             _logger.LogError(ex, "Error deleting image MessageId: {MessageId}, UserId: {UserId}", messageId, appUserId);
             return StatusCode(500, "画像削除中にエラーが発生しました。");
         }
+    }
+
+    /// <summary>
+    /// Convert chat message history to ChatTurn format for hexagonal architecture
+    /// </summary>
+    private List<ChatTurn> ConvertToChatTurns(List<ChatMessage> history)
+    {
+        var turns = new List<ChatTurn>();
+        
+        for (int i = 0; i < history.Count; i += 2)
+        {
+            var userMessage = history[i];
+            var aiMessage = i + 1 < history.Count ? history[i + 1] : null;
+            
+            // Only process if this is a user message
+            if (userMessage.Sender == "user")
+            {
+                turns.Add(new ChatTurn(
+                    UserMessage: userMessage.Text,
+                    AssistantMessage: aiMessage?.Sender == "ai" ? aiMessage.Text : null,
+                    Timestamp: userMessage.Timestamp
+                ));
+            }
+        }
+        
+        return turns;
+    }
+
+    /// <summary>
+    /// Build image prompt instruction with character information
+    /// </summary>
+    private string BuildImagePromptInstruction(CharacterProfile character)
+    {
+        var sb = new System.Text.StringBuilder();
+        sb.AppendLine("## Image Generation Instruction");
+        sb.AppendLine("Based on the conversation context, generate a detailed English image description that captures the current scene, action, or emotion. Focus on visual details that would help create an artistic illustration.");
+        sb.AppendLine();
+        sb.AppendLine("## Character Profile:");
+        sb.Append("- Name: ").AppendLine(character.Name);
+        if (!string.IsNullOrEmpty(character.Personality))
+            sb.Append("- Personality: ").AppendLine(character.Personality);
+        if (!string.IsNullOrEmpty(character.Appearance))
+            sb.Append("- Appearance: ").AppendLine(character.Appearance);
+        if (!string.IsNullOrEmpty(character.Backstory))
+            sb.Append("- Backstory: ").AppendLine(character.Backstory);
+        sb.AppendLine();
+        sb.AppendLine("Generate a concise but vivid English description suitable for image generation (max 100 words).");
+        
+        return sb.ToString();
     }
 }

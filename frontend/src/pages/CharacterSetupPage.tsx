@@ -8,10 +8,12 @@ import {
 } from 'react-hook-form'; // react-hook-form をインポート
 import { CreateCharacterProfileRequest } from '../models/CreateCharacterProfileRequest';
 import { UpdateCharacterProfileRequest } from '../models/UpdateCharacterProfileRequest';
+import { ModelSettingsFormData } from '../components/ModelSettingsForm';
 import { useCharacterProfile } from '../hooks/useCharacterProfile'; // カスタムフック
 import styles from './CharacterSetupPage.module.css';
 import FormField from '../components/FormField';
 import Button from '../components/Button';
+import { ModelSettingsForm } from '../components/ModelSettingsForm';
 
 interface DialoguePairForm {
   user: string;
@@ -31,6 +33,11 @@ interface CharacterFormData {
   userAppellation: string;
   isActive: boolean;
   dialoguePairs: DialoguePairForm[];
+  // Use the model settings structure instead of AI generation settings
+  geminiChatModel: string;
+  geminiImagePromptModel: string;
+  replicateImageModel: string;
+  geminiImagePromptInstruction: string;
 }
 
 const CharacterSetupPage: React.FC = () => {
@@ -60,6 +67,8 @@ const CharacterSetupPage: React.FC = () => {
     reset, // フォーム値をリセット/初期化する関数
     watch, // 特定のフォーム値を監視する関数 (isSystemPromptCustomized で使用)
     formState: { errors, isSubmitting: isFormSubmitting }, // フォームの状態 (エラー、送信中かなど)
+    setValue, // 値を手動で設定する関数
+    getValues, // 現在のフォーム値を取得する関数
   } = useForm<CharacterFormData>({
     // デフォルト値を設定
     defaultValues: {
@@ -75,6 +84,10 @@ const CharacterSetupPage: React.FC = () => {
       userAppellation: '',
       isActive: true,
       dialoguePairs: [], // useFieldArray 用
+      geminiChatModel: '',
+      geminiImagePromptModel: '',
+      replicateImageModel: '',
+      geminiImagePromptInstruction: '',
     },
   });
 
@@ -129,6 +142,11 @@ const CharacterSetupPage: React.FC = () => {
           user: p.user ?? '',
           model: p.model ?? '',
         })), // useFieldArray 用
+        // Convert AI settings to model settings format
+        geminiChatModel: initialCharacterData.aiSettings?.chatGenerationModel ?? '',
+        geminiImagePromptModel: initialCharacterData.aiSettings?.imagePromptGenerationModel ?? '',
+        replicateImageModel: initialCharacterData.aiSettings?.imageGenerationModel ?? '',
+        geminiImagePromptInstruction: initialCharacterData.aiSettings?.imageGenerationPromptInstruction ?? '',
       });
     }
   }, [initialCharacterData, reset]); // reset も依存配列に追加推奨
@@ -152,6 +170,18 @@ const CharacterSetupPage: React.FC = () => {
       return;
     }
 
+    // Convert model settings back to AI settings format
+    const aiSettings = (formData.geminiChatModel || formData.geminiImagePromptModel || 
+                       formData.replicateImageModel || formData.geminiImagePromptInstruction) ? {
+      chatGenerationProvider: formData.geminiChatModel ? 'Gemini' : null,
+      chatGenerationModel: formData.geminiChatModel || null,
+      imagePromptGenerationProvider: formData.geminiImagePromptModel ? 'Gemini' : null,
+      imagePromptGenerationModel: formData.geminiImagePromptModel || null,
+      imageGenerationProvider: formData.replicateImageModel ? 'Replicate' : null,
+      imageGenerationModel: formData.replicateImageModel || null,
+      imageGenerationPromptInstruction: formData.geminiImagePromptInstruction || null,
+    } : null;
+
     if (isEditMode && characterId) {
       // --- 更新処理 ---
       const requestData: UpdateCharacterProfileRequest = {
@@ -167,6 +197,7 @@ const CharacterSetupPage: React.FC = () => {
         appearance: formData.appearance !== '' ? formData.appearance : null,
         userAppellation: formData.userAppellation !== '' ? formData.userAppellation : null,
         isActive: formData.isActive,
+        aiSettings: aiSettings,
       };
       const success = await updateCharacter(characterId, requestData); // カスタムフック呼び出し
       if (success) {
@@ -188,6 +219,7 @@ const CharacterSetupPage: React.FC = () => {
         appearance: formData.appearance !== '' ? formData.appearance : null,
         userAppellation: formData.userAppellation !== '' ? formData.userAppellation : null,
         isActive: formData.isActive, // デフォルト true だが念のため
+        aiSettings: aiSettings,
       };
       const createdCharacter = await createCharacter(requestData); // カスタムフック呼び出し
       if (createdCharacter) {
@@ -408,6 +440,17 @@ const CharacterSetupPage: React.FC = () => {
             <input type="checkbox" id="isActive" {...register('isActive')} style={{ marginRight: '0.5rem' }} />
             有効なキャラクター
           </label>
+        </div>
+
+        {/* --- AIモデル設定 --- */}
+        <div className={styles.formGroup}>
+        {/* AI Model Settings */}
+        <ModelSettingsForm 
+          register={register}
+          watch={watch}
+          showToggle={true}
+          showFallbackNote={true}
+        />
         </div>
 
         {/* --- 送信ボタン・エラー表示 --- */}

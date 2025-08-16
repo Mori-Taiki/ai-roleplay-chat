@@ -4,6 +4,12 @@ using Microsoft.EntityFrameworkCore;
 using AiRoleplayChat.Backend.Data;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.Identity.Web;
+using AiRoleplayChat.Backend.Adapters.Image;
+using AiRoleplayChat.Backend.Adapters.Text;
+using AiRoleplayChat.Backend.Application.Ports;
+using AiRoleplayChat.Backend.Application.Prompts;
+using AiRoleplayChat.Backend.Application.Routing;
+using AiRoleplayChat.Backend.Options;
 
 // CORSポリシー名を定義
 var MyAllowSpecificOrigins = "_myAllowSpecificOrigins";
@@ -28,7 +34,7 @@ builder.Services.Configure<Microsoft.AspNetCore.Http.Json.JsonOptions>(options =
     options.SerializerOptions.PropertyNameCaseInsensitive = true; // JSONプロパティ名の大文字小文字を無視
 });
 
-builder.Services.AddScoped<IGeminiService, GeminiService>();
+// --- Service registrations ---
 builder.Services.AddScoped<IBlobStorageService, BlobStorageService>();
 builder.Services.AddSingleton(provider =>
 {
@@ -40,13 +46,26 @@ builder.Services.AddSingleton(provider =>
     Console.WriteLine($"[DI] Creating Singleton PredictionServiceClient for endpoint: {endpoint}");
     return new PredictionServiceClientBuilder { Endpoint = endpoint }.Build();
 });
-// builder.Services.AddScoped<IImagenService, ImagenService>();
-builder.Services.AddScoped<IImagenService, ReplicateService>();
 builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddScoped<IChatMessageService, ChatMessageService>();
 builder.Services.AddScoped<IChatSessionService, ChatSessionService>();
 builder.Services.AddScoped<IApiKeyService, ApiKeyService>();
-builder.Services.AddScoped<IUserSettingsService, UserSettingsService>();
+builder.Services.AddScoped<IAiGenerationSettingsService, AiGenerationSettingsService>();
+
+// --- Hexagonal Architecture Services ---
+// Configure ProviderOptions
+builder.Services.Configure<ProviderOptions>(
+    builder.Configuration.GetSection(ProviderOptions.SectionName));
+
+// Register Prompt Compiler
+builder.Services.AddScoped<IPromptCompiler, PromptCompiler>();
+
+// Register Adapters as Ports
+builder.Services.AddScoped<ITextModelPort, GeminiTextAdapter>();
+builder.Services.AddScoped<IImageModelPort, ReplicateImageAdapter>();
+
+// Register Router
+builder.Services.AddScoped<ILlmRouter, LlmRouter>();
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(options =>

@@ -1,3 +1,5 @@
+import { AiGenerationSettingsRequest } from './AiGenerationSettings';
+
 export interface UpdateCharacterProfileRequest {
     name: string;
     personality: string | null;
@@ -10,4 +12,5 @@ export interface UpdateCharacterProfileRequest {
     isSystemPromptCustomized: boolean;
     appearance: string | null;
     userAppellation: string | null;
+    aiSettings: AiGenerationSettingsRequest | null;
   }

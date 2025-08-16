@@ -8,8 +8,9 @@ using AiRoleplayChat.Backend.Data;
 using System.ComponentModel.DataAnnotations;
 using Microsoft.AspNetCore.Authorization;
 using System.Text.RegularExpressions;
-using AiRoleplayChat.Backend.Utils;
-using static AiRoleplayChat.Backend.Utils.PromptUtils; // PromptUtils の using を確認
+using AiRoleplayChat.Backend.Application.Routing;
+using AiRoleplayChat.Backend.Application.Prompts;
+using AiRoleplayChat.Backend.Application.Contracts;
 
 namespace AiRoleplayChat.Backend.Controllers;
 
@@ -18,22 +19,22 @@ namespace AiRoleplayChat.Backend.Controllers;
 [Authorize]
 public class ChatController : BaseApiController
 {
-    private readonly IGeminiService _geminiService;
-    private readonly IImagenService _imagenService;
+    private readonly ILlmRouter _llmRouter;
+    private readonly IPromptCompiler _promptCompiler;
     private readonly AppDbContext _context;
     private readonly IChatMessageService _chatMessageService;
 
     public ChatController(
         AppDbContext context,
         IUserService userService,
-        IGeminiService geminiService,
-        IImagenService imagenService,
+        ILlmRouter llmRouter,
+        IPromptCompiler promptCompiler,
         IChatMessageService chatMessageService,
         ILogger<ChatController> logger)
     : base(userService, logger)
     {
-        _geminiService = geminiService;
-        _imagenService = imagenService;
+        _llmRouter = llmRouter;
+        _promptCompiler = promptCompiler;
         _context = context;
         _chatMessageService = chatMessageService;
     }
@@ -143,22 +144,41 @@ public class ChatController : BaseApiController
         };
 
 
-        // 3. GeminiService で応答を取得
+        // 3. Generate AI response using hexagonal architecture
         string aiReplyTextWithPotentialTag;
         try
         {
-            aiReplyTextWithPotentialTag = await _geminiService.GenerateChatResponseAsync(
-                request.Prompt,
-                SystemPromptHelper.AppendImageInstruction(character.SystemPrompt ?? SystemPromptHelper.GenerateDefaultPrompt(character.Name, character.Personality, character.Tone, character.Backstory, character.Appearance, character.UserAppellation)),
-                history,
-                appUserId,
-                cancellationToken
-             );
-            _logger.LogInformation("Gemini response received for session {SessionId}", session.Id);
+            // Convert chat history to ChatTurn format
+            var chatHistory = ConvertToChatTurns(history);
+            
+            // Resolve text model through router
+            var textModel = await _llmRouter.ResolveTextModelAsync(character, appUserId);
+            
+            // Create text request
+            var textRequest = new TextRequest(
+                Prompt: request.Prompt,
+                SystemPrompt: _promptCompiler.AppendImageInstruction(
+                    character.SystemPrompt ?? _promptCompiler.GenerateDefaultPrompt(
+                        character.Name, 
+                        character.Personality, 
+                        character.Tone, 
+                        character.Backstory, 
+                        character.Appearance, 
+                        character.UserAppellation)),
+                History: chatHistory,
+                UserId: appUserId
+            );
+            
+            // Generate response
+            var textCompletion = await textModel.GenerateTextAsync(textRequest, cancellationToken);
+            aiReplyTextWithPotentialTag = textCompletion.Text;
+            
+            _logger.LogInformation("Text model {ModelId} response received for session {SessionId}", 
+                textCompletion.ModelId, session.Id);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error calling Gemini service for session {SessionId}", session.Id);
+            _logger.LogError(ex, "Error calling text model for session {SessionId}", session.Id);
             return StatusCode(StatusCodes.Status500InternalServerError, "AI応答の生成中にエラーが発生しました。");
         }
 
@@ -312,22 +332,41 @@ public class ChatController : BaseApiController
             .AsNoTracking()
             .ToListAsync(cancellationToken);
 
-        // Generate new AI response
+        // Generate new AI response using hexagonal architecture
         string aiReplyTextWithPotentialTag;
         try
         {
-            aiReplyTextWithPotentialTag = await _geminiService.GenerateChatResponseAsync(
-                request.NewText,
-                SystemPromptHelper.AppendImageInstruction(character.SystemPrompt ?? SystemPromptHelper.GenerateDefaultPrompt(character.Name, character.Personality, character.Tone, character.Backstory, character.Appearance, character.UserAppellation)),
-                history,
-                appUserId,
-                cancellationToken
+            // Convert chat history to ChatTurn format
+            var chatHistory = ConvertToChatTurns(history);
+            
+            // Resolve text model through router
+            var textModel = await _llmRouter.ResolveTextModelAsync(character, appUserId);
+            
+            // Create text request
+            var textRequest = new TextRequest(
+                Prompt: request.NewText,
+                SystemPrompt: _promptCompiler.AppendImageInstruction(
+                    character.SystemPrompt ?? _promptCompiler.GenerateDefaultPrompt(
+                        character.Name, 
+                        character.Personality, 
+                        character.Tone, 
+                        character.Backstory, 
+                        character.Appearance, 
+                        character.UserAppellation)),
+                History: chatHistory,
+                UserId: appUserId
             );
-            _logger.LogInformation("Gemini response received for edited message {MessageId}", userMessageId);
+            
+            // Generate response
+            var textCompletion = await textModel.GenerateTextAsync(textRequest, cancellationToken);
+            aiReplyTextWithPotentialTag = textCompletion.Text;
+            
+            _logger.LogInformation("Text model {ModelId} response received for edited message {MessageId}", 
+                textCompletion.ModelId, userMessageId);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error calling Gemini service for edited message {MessageId}", userMessageId);
+            _logger.LogError(ex, "Error calling text model for edited message {MessageId}", userMessageId);
             return StatusCode(StatusCodes.Status500InternalServerError, "AI応答の生成中にエラーが発生しました。");
         }
 
@@ -433,22 +472,41 @@ public class ChatController : BaseApiController
             .AsNoTracking()
             .ToListAsync(cancellationToken);
 
-        // Generate new AI response
+        // Generate new AI response using hexagonal architecture
         string aiReplyTextWithPotentialTag;
         try
         {
-            aiReplyTextWithPotentialTag = await _geminiService.GenerateChatResponseAsync(
-                userMessage.Text,
-                SystemPromptHelper.AppendImageInstruction(character.SystemPrompt ?? SystemPromptHelper.GenerateDefaultPrompt(character.Name, character.Personality, character.Tone, character.Backstory, character.Appearance, character.UserAppellation)),
-                history,
-                appUserId,
-                cancellationToken
+            // Convert chat history to ChatTurn format
+            var chatHistory = ConvertToChatTurns(history);
+            
+            // Resolve text model through router
+            var textModel = await _llmRouter.ResolveTextModelAsync(character, appUserId);
+            
+            // Create text request
+            var textRequest = new TextRequest(
+                Prompt: userMessage.Text,
+                SystemPrompt: _promptCompiler.AppendImageInstruction(
+                    character.SystemPrompt ?? _promptCompiler.GenerateDefaultPrompt(
+                        character.Name, 
+                        character.Personality, 
+                        character.Tone, 
+                        character.Backstory, 
+                        character.Appearance, 
+                        character.UserAppellation)),
+                History: chatHistory,
+                UserId: appUserId
             );
-            _logger.LogInformation("Gemini response received for regenerated AI message {MessageId}", aiMessageId);
+            
+            // Generate response
+            var textCompletion = await textModel.GenerateTextAsync(textRequest, cancellationToken);
+            aiReplyTextWithPotentialTag = textCompletion.Text;
+            
+            _logger.LogInformation("Text model {ModelId} response received for regenerated AI message {MessageId}", 
+                textCompletion.ModelId, aiMessageId);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error calling Gemini service for AI message regeneration {MessageId}", aiMessageId);
+            _logger.LogError(ex, "Error calling text model for AI message regeneration {MessageId}", aiMessageId);
             return StatusCode(StatusCodes.Status500InternalServerError, "AI応答の生成中にエラーが発生しました。");
         }
 
@@ -489,5 +547,31 @@ public class ChatController : BaseApiController
         );
 
         return Ok(response);
+    }
+
+    /// <summary>
+    /// Convert chat message history to ChatTurn format for hexagonal architecture
+    /// </summary>
+    private List<ChatTurn> ConvertToChatTurns(List<ChatMessage> history)
+    {
+        var turns = new List<ChatTurn>();
+        
+        for (int i = 0; i < history.Count; i += 2)
+        {
+            var userMessage = history[i];
+            var aiMessage = i + 1 < history.Count ? history[i + 1] : null;
+            
+            // Only process if this is a user message
+            if (userMessage.Sender == "user")
+            {
+                turns.Add(new ChatTurn(
+                    UserMessage: userMessage.Text,
+                    AssistantMessage: aiMessage?.Sender == "ai" ? aiMessage.Text : null,
+                    Timestamp: userMessage.Timestamp
+                ));
+            }
+        }
+        
+        return turns;
     }
 }

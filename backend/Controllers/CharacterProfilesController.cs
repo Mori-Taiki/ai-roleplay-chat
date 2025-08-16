@@ -2,10 +2,9 @@ using AiRoleplayChat.Backend.Data;
 using AiRoleplayChat.Backend.Domain.Entities;
 using AiRoleplayChat.Backend.Models;
 using AiRoleplayChat.Backend.Services;
-using AiRoleplayChat.Backend.Utils;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using static AiRoleplayChat.Backend.Utils.PromptUtils;
+using AiRoleplayChat.Backend.Application.Prompts;
 
 namespace AiRoleplayChat.Backend.Controllers; // プロジェクトの実際の名前空間に合わせてください
 
@@ -13,11 +12,20 @@ namespace AiRoleplayChat.Backend.Controllers; // プロジェクトの実際の�
 public class CharacterProfilesController : BaseApiController
 {
     private readonly AppDbContext _context;
+    private readonly IPromptCompiler _promptCompiler;
+    private readonly IAiGenerationSettingsService _aiSettingsService;
 
-    public CharacterProfilesController(AppDbContext context, IUserService userService, ILogger<CharacterProfilesController> logger)
+    public CharacterProfilesController(
+        AppDbContext context, 
+        IUserService userService, 
+        IPromptCompiler promptCompiler, 
+        IAiGenerationSettingsService aiSettingsService,
+        ILogger<CharacterProfilesController> logger)
         : base(userService, logger)
     {
         _context = context;
+        _promptCompiler = promptCompiler;
+        _aiSettingsService = aiSettingsService;
     }
 
     // POST: api/characterprofiles
@@ -43,7 +51,7 @@ public class CharacterProfilesController : BaseApiController
         else
         {
             // ★ 共通メソッドでデフォルトプロンプトを生成
-            baseSystemPrompt = SystemPromptHelper.GenerateDefaultPrompt(
+            baseSystemPrompt = _promptCompiler.GenerateDefaultPrompt(
                 request.Name, request.Personality, request.Tone, request.Backstory, request.Appearance, request.UserAppellation);
             isCustomized = false;
             _logger.LogInformation("Generating SystemPrompt based on other fields for character: {CharacterName}", request.Name);
@@ -51,6 +59,33 @@ public class CharacterProfilesController : BaseApiController
 
         // ★ ベースプロンプトに画像生成指示を追加
         // string finalSystemPrompt = SystemPromptHelper.AppendImageInstruction(baseSystemPrompt);
+
+        // Create AI settings if provided
+        int? aiSettingsId = null;
+        if (request.AiSettings != null && 
+            (!string.IsNullOrEmpty(request.AiSettings.ChatGenerationProvider) ||
+             !string.IsNullOrEmpty(request.AiSettings.ChatGenerationModel) ||
+             !string.IsNullOrEmpty(request.AiSettings.ImagePromptGenerationProvider) ||
+             !string.IsNullOrEmpty(request.AiSettings.ImagePromptGenerationModel) ||
+             !string.IsNullOrEmpty(request.AiSettings.ImageGenerationProvider) ||
+             !string.IsNullOrEmpty(request.AiSettings.ImageGenerationModel) ||
+             !string.IsNullOrEmpty(request.AiSettings.ImageGenerationPromptInstruction)))
+        {
+            var aiSettings = new AiGenerationSettings
+            {
+                SettingsType = "Character",
+                ChatGenerationProvider = request.AiSettings.ChatGenerationProvider,
+                ChatGenerationModel = request.AiSettings.ChatGenerationModel,
+                ImagePromptGenerationProvider = request.AiSettings.ImagePromptGenerationProvider,
+                ImagePromptGenerationModel = request.AiSettings.ImagePromptGenerationModel,
+                ImageGenerationProvider = request.AiSettings.ImageGenerationProvider,
+                ImageGenerationModel = request.AiSettings.ImageGenerationModel,
+                ImageGenerationPromptInstruction = request.AiSettings.ImageGenerationPromptInstruction
+            };
+
+            var createdAiSettings = await _aiSettingsService.CreateOrUpdateSettingsAsync(aiSettings);
+            aiSettingsId = createdAiSettings.Id;
+        }
 
         var newProfile = new CharacterProfile
         {
@@ -63,6 +98,7 @@ public class CharacterProfilesController : BaseApiController
             AvatarImageUrl = request.AvatarImageUrl,
             Appearance = request.Appearance,
             UserAppellation = request.UserAppellation,
+            AiSettingsId = aiSettingsId,
             IsActive = true,
             IsSystemPromptCustomized = isCustomized,
             CreatedAt = DateTime.UtcNow,
@@ -72,6 +108,27 @@ public class CharacterProfilesController : BaseApiController
 
         _context.CharacterProfiles.Add(newProfile);
         await _context.SaveChangesAsync(cancellationToken);
+
+        // Load the AI settings for the response
+        AiGenerationSettingsResponse? aiSettingsResponse = null;
+        if (newProfile.AiSettingsId.HasValue)
+        {
+            var aiSettings = await _aiSettingsService.GetSettingsAsync(newProfile.AiSettingsId.Value);
+            if (aiSettings != null)
+            {
+                aiSettingsResponse = new AiGenerationSettingsResponse(
+                    aiSettings.Id,
+                    aiSettings.SettingsType,
+                    aiSettings.ChatGenerationProvider,
+                    aiSettings.ChatGenerationModel,
+                    aiSettings.ImagePromptGenerationProvider,
+                    aiSettings.ImagePromptGenerationModel,
+                    aiSettings.ImageGenerationProvider,
+                    aiSettings.ImageGenerationModel,
+                    aiSettings.ImageGenerationPromptInstruction
+                );
+            }
+        }
 
         var responseDto = new CharacterProfileResponse(
             newProfile.Id,
@@ -85,7 +142,8 @@ public class CharacterProfilesController : BaseApiController
             newProfile.IsActive,
             newProfile.IsSystemPromptCustomized,
             newProfile.Appearance,
-            newProfile.UserAppellation
+            newProfile.UserAppellation,
+            aiSettingsResponse
         );
 
         return CreatedAtAction(nameof(GetCharacterProfile), new { id = newProfile.Id }, responseDto);
@@ -93,13 +151,14 @@ public class CharacterProfilesController : BaseApiController
 
     // GET: api/characterprofiles
     [HttpGet(Name = "GetAllCharacterProfiles")]
-    [ProducesResponseType(typeof(IEnumerable<CharacterProfileResponse>), StatusCodes.Status200OK)]
-    public async Task<ActionResult<IEnumerable<CharacterProfileResponse>>> GetAllCharacterProfiles(CancellationToken cancellationToken)
+    [ProducesResponseType(typeof(IEnumerable<CharacterProfileWithSessionInfoResponse>), StatusCodes.Status200OK)]
+    public async Task<ActionResult<IEnumerable<CharacterProfileWithSessionInfoResponse>>> GetAllCharacterProfiles(CancellationToken cancellationToken)
     {
         var (appUserId, errorResult) = await GetCurrentAppUserIdAsync(cancellationToken);
         if (errorResult != null) return errorResult;
 
         var characters = await _context.CharacterProfiles
+            .Include(p => p.AiSettings)
             .Where(p => p.UserId == appUserId)
             .OrderBy(p => p.Id)
             .ToListAsync();
@@ -121,13 +180,37 @@ public class CharacterProfilesController : BaseApiController
                     })
                     .FirstOrDefaultAsync(); // 最新のセッションを1件取得
 
+                AiGenerationSettingsResponse? aiSettingsResponse = null;
+                if (character.AiSettings != null)
+                {
+                    aiSettingsResponse = new AiGenerationSettingsResponse(
+                        character.AiSettings.Id,
+                        character.AiSettings.SettingsType,
+                        character.AiSettings.ChatGenerationProvider,
+                        character.AiSettings.ChatGenerationModel,
+                        character.AiSettings.ImagePromptGenerationProvider,
+                        character.AiSettings.ImagePromptGenerationModel,
+                        character.AiSettings.ImageGenerationProvider,
+                        character.AiSettings.ImageGenerationModel,
+                        character.AiSettings.ImageGenerationPromptInstruction
+                    );
+                }
+
                 var response = new CharacterProfileWithSessionInfoResponse
                 {
                     Id = character.Id,
                     Name = character.Name,
+                    Personality = character.Personality,
+                    Tone = character.Tone,
+                    Backstory = character.Backstory,
+                    SystemPrompt = character.SystemPrompt,
+                    ExampleDialogue = character.ExampleDialogue,
                     AvatarImageUrl = character.AvatarImageUrl,
-                    // 他の CharacterProfile プロパティ...
-
+                    IsActive = character.IsActive,
+                    IsSystemPromptCustomized = character.IsSystemPromptCustomized,
+                    Appearance = character.Appearance,
+                    UserAppellation = character.UserAppellation,
+                    AiSettings = aiSettingsResponse,
                     SessionId = latestSessionInfo?.SessionId,
                     // 最新メッセージの一部を取得 (例: 50文字に制限)
                     LastMessageSnippet = latestSessionInfo?.LastMessage?.Text?.Length > 1000
@@ -150,11 +233,28 @@ public class CharacterProfilesController : BaseApiController
         if (errorResult != null) return errorResult;
 
         var profile = await _context.CharacterProfiles
+            .Include(p => p.AiSettings)
             .FirstOrDefaultAsync(p => p.Id == id && p.UserId == appUserId, cancellationToken);
 
         if (profile == null)
         {
             return NotFound();
+        }
+
+        AiGenerationSettingsResponse? aiSettingsResponse = null;
+        if (profile.AiSettings != null)
+        {
+            aiSettingsResponse = new AiGenerationSettingsResponse(
+                profile.AiSettings.Id,
+                profile.AiSettings.SettingsType,
+                profile.AiSettings.ChatGenerationProvider,
+                profile.AiSettings.ChatGenerationModel,
+                profile.AiSettings.ImagePromptGenerationProvider,
+                profile.AiSettings.ImagePromptGenerationModel,
+                profile.AiSettings.ImageGenerationProvider,
+                profile.AiSettings.ImageGenerationModel,
+                profile.AiSettings.ImageGenerationPromptInstruction
+            );
         }
 
         var response = new CharacterProfileResponse(
@@ -169,7 +269,8 @@ public class CharacterProfilesController : BaseApiController
             profile.IsActive,
             profile.IsSystemPromptCustomized,
             profile.Appearance,
-            profile.UserAppellation
+            profile.UserAppellation,
+            aiSettingsResponse
         );
 
         return Ok(response);
@@ -201,13 +302,57 @@ public class CharacterProfilesController : BaseApiController
         else
         {
             // ★ 共通メソッドでデフォルトプロンプトを生成
-            baseSystemPrompt = SystemPromptHelper.GenerateDefaultPrompt(
+            baseSystemPrompt = _promptCompiler.GenerateDefaultPrompt(
                 request.Name, request.Personality, request.Tone, request.Backstory, request.Appearance, request.UserAppellation); // 更新リクエストの値を使う
             _logger.LogInformation("Auto-generating SystemPrompt for Character {Id} based on other fields.", id);
         }
 
         // ★ ベースプロンプトに画像生成指示を追加
         // string finalSystemPrompt = SystemPromptHelper.AppendImageInstruction(baseSystemPrompt);
+
+        // Handle AI settings update
+        if (request.AiSettings != null)
+        {
+            if (existingProfile.AiSettingsId.HasValue)
+            {
+                // Update existing AI settings
+                var existingAiSettings = await _aiSettingsService.GetSettingsAsync(existingProfile.AiSettingsId.Value);
+                if (existingAiSettings != null)
+                {
+                    existingAiSettings.ChatGenerationProvider = request.AiSettings.ChatGenerationProvider;
+                    existingAiSettings.ChatGenerationModel = request.AiSettings.ChatGenerationModel;
+                    existingAiSettings.ImagePromptGenerationProvider = request.AiSettings.ImagePromptGenerationProvider;
+                    existingAiSettings.ImagePromptGenerationModel = request.AiSettings.ImagePromptGenerationModel;
+                    existingAiSettings.ImageGenerationProvider = request.AiSettings.ImageGenerationProvider;
+                    existingAiSettings.ImageGenerationModel = request.AiSettings.ImageGenerationModel;
+                    existingAiSettings.ImageGenerationPromptInstruction = request.AiSettings.ImageGenerationPromptInstruction;
+                    await _aiSettingsService.CreateOrUpdateSettingsAsync(existingAiSettings);
+                }
+            }
+            else
+            {
+                // Create new AI settings
+                var newAiSettings = new AiGenerationSettings
+                {
+                    SettingsType = "Character",
+                    ChatGenerationProvider = request.AiSettings.ChatGenerationProvider,
+                    ChatGenerationModel = request.AiSettings.ChatGenerationModel,
+                    ImagePromptGenerationProvider = request.AiSettings.ImagePromptGenerationProvider,
+                    ImagePromptGenerationModel = request.AiSettings.ImagePromptGenerationModel,
+                    ImageGenerationProvider = request.AiSettings.ImageGenerationProvider,
+                    ImageGenerationModel = request.AiSettings.ImageGenerationModel,
+                    ImageGenerationPromptInstruction = request.AiSettings.ImageGenerationPromptInstruction
+                };
+                var createdAiSettings = await _aiSettingsService.CreateOrUpdateSettingsAsync(newAiSettings);
+                existingProfile.AiSettingsId = createdAiSettings.Id;
+            }
+        }
+        else if (existingProfile.AiSettingsId.HasValue)
+        {
+            // Remove AI settings if request doesn't include them
+            await _aiSettingsService.DeleteSettingsAsync(existingProfile.AiSettingsId.Value);
+            existingProfile.AiSettingsId = null;
+        }
 
         // 既存エンティティのプロパティをリクエスト DTO の値で更新
         existingProfile.Name = request.Name;

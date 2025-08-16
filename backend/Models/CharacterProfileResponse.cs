@@ -12,5 +12,6 @@ public record CharacterProfileResponse(
     bool IsActive,
     bool IsSystemPromptCustomized,
     string? Appearance,
-    string? UserAppellation
+    string? UserAppellation,
+    AiGenerationSettingsResponse? AiSettings
 );

@@ -3,6 +3,7 @@ using System;
 using AiRoleplayChat.Backend.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -10,69 +11,19 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace backend.Data.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20250815061005_AddCharacterModelSettings")]
+    partial class AddCharacterModelSettings
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "8.0.3");
-
-            modelBuilder.Entity("AiRoleplayChat.Backend.Domain.Entities.AiGenerationSettings", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER");
-
-                    b.Property<string>("ChatGenerationModel")
-                        .HasMaxLength(200)
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("ChatGenerationProvider")
-                        .HasMaxLength(50)
-                        .HasColumnType("TEXT");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("ImageGenerationModel")
-                        .HasMaxLength(200)
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("ImageGenerationPromptInstruction")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("ImageGenerationProvider")
-                        .HasMaxLength(50)
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("ImagePromptGenerationModel")
-                        .HasMaxLength(200)
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("ImagePromptGenerationProvider")
-                        .HasMaxLength(50)
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("SettingsType")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("TEXT");
-
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("TEXT");
-
-                    b.HasKey("Id");
-
-                    b.ToTable("AiGenerationSettings");
-                });
 
             modelBuilder.Entity("AiRoleplayChat.Backend.Domain.Entities.CharacterProfile", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER");
-
-                    b.Property<int?>("AiSettingsId")
                         .HasColumnType("INTEGER");
 
                     b.Property<string>("Appearance")
@@ -92,6 +43,14 @@ namespace backend.Data.Migrations
                     b.Property<string>("ExampleDialogue")
                         .HasColumnType("JSON");
 
+                    b.Property<string>("ImageModelId")
+                        .HasMaxLength(200)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ImageModelProvider")
+                        .HasMaxLength(50)
+                        .HasColumnType("TEXT");
+
                     b.Property<bool>("IsActive")
                         .HasColumnType("INTEGER");
 
@@ -109,6 +68,14 @@ namespace backend.Data.Migrations
                     b.Property<string>("SystemPrompt")
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("TextModelId")
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("TextModelProvider")
+                        .HasMaxLength(50)
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("Tone")
                         .HasColumnType("TEXT");
 
@@ -123,8 +90,6 @@ namespace backend.Data.Migrations
                         .HasColumnType("INTEGER");
 
                     b.HasKey("Id");
-
-                    b.HasIndex("AiSettingsId");
 
                     b.ToTable("CharacterProfiles");
                 });
@@ -238,9 +203,6 @@ namespace backend.Data.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("INTEGER");
 
-                    b.Property<int?>("AiSettingsId")
-                        .HasColumnType("INTEGER");
-
                     b.Property<string>("B2cObjectId")
                         .IsRequired()
                         .HasMaxLength(36)
@@ -263,22 +225,42 @@ namespace backend.Data.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("AiSettingsId");
-
                     b.HasIndex("B2cObjectId")
                         .IsUnique();
 
                     b.ToTable("Users");
                 });
 
-            modelBuilder.Entity("AiRoleplayChat.Backend.Domain.Entities.CharacterProfile", b =>
+            modelBuilder.Entity("AiRoleplayChat.Backend.Domain.Entities.UserSetting", b =>
                 {
-                    b.HasOne("AiRoleplayChat.Backend.Domain.Entities.AiGenerationSettings", "AiSettings")
-                        .WithMany()
-                        .HasForeignKey("AiSettingsId")
-                        .OnDelete(DeleteBehavior.SetNull);
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
 
-                    b.Navigation("AiSettings");
+                    b.Property<string>("ServiceType")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("SettingKey")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("SettingValue")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("UserId")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId", "ServiceType", "SettingKey")
+                        .IsUnique();
+
+                    b.ToTable("UserSettings");
                 });
 
             modelBuilder.Entity("AiRoleplayChat.Backend.Domain.Entities.ChatMessage", b =>
@@ -311,14 +293,15 @@ namespace backend.Data.Migrations
                     b.Navigation("CharacterProfile");
                 });
 
-            modelBuilder.Entity("AiRoleplayChat.Backend.Domain.Entities.User", b =>
+            modelBuilder.Entity("AiRoleplayChat.Backend.Domain.Entities.UserSetting", b =>
                 {
-                    b.HasOne("AiRoleplayChat.Backend.Domain.Entities.AiGenerationSettings", "AiSettings")
+                    b.HasOne("AiRoleplayChat.Backend.Domain.Entities.User", "User")
                         .WithMany()
-                        .HasForeignKey("AiSettingsId")
-                        .OnDelete(DeleteBehavior.SetNull);
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
 
-                    b.Navigation("AiSettings");
+                    b.Navigation("User");
                 });
 
             modelBuilder.Entity("AiRoleplayChat.Backend.Domain.Entities.ChatSession", b =>

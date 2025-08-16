@@ -1,122 +1,124 @@
 using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
-using System.Linq;
-using System.Threading;
-using System.Threading.Tasks;
+using System.Text.Json.Serialization;
+using AiRoleplayChat.Backend.Application.Contracts;
+using AiRoleplayChat.Backend.Application.Ports;
+using AiRoleplayChat.Backend.Data;
+using AiRoleplayChat.Backend.Services;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
-using System.Text.Json.Serialization; // ILoggerを追加
 
-namespace AiRoleplayChat.Backend.Services;
+namespace AiRoleplayChat.Backend.Adapters.Image;
 
-public class ReplicateService : IImagenService
+/// <summary>
+/// Replicate adapter implementing IImageModelPort for image generation
+/// Wraps the existing Replicate API logic in hexagonal architecture
+/// </summary>
+public class ReplicateImageAdapter : IImageModelPort
 {
-    // --- APIリクエスト/レスポンス用の内部レコード定義 ---
-
-    // APIに送信するリクエストのinput部分
+    // API request/response internal records (migrated from ReplicateService)
     private record ReplicateInput(
         [property: JsonPropertyName("prompt")] string Prompt,
         [property: JsonPropertyName("negative_prompt")] string NegativePrompt
     );
 
-    // APIに送信するリクエスト全体
     private record ReplicateRequest([property: JsonPropertyName("version")] string Version, [property: JsonPropertyName("input")] ReplicateInput Input);
 
-    // 最初にPOSTしたときに返ってくるレスポンス
     private record InitialResponse(
         [property: JsonPropertyName("urls")] Urls? Urls
     );
     private record Urls([property: JsonPropertyName("get")] string Get);
 
-    // ポーリング時に返ってくるレスポンス
     private record PollingResponse(
-        [property: JsonPropertyName("output")] JsonElement? Output, // URLは配列 or 文字列の場合があるためJsonElementで受ける
+        [property: JsonPropertyName("output")] JsonElement? Output,
         [property: JsonPropertyName("status")] string? Status
     );
 
-    // --- クラスのフィールド ---
     private readonly IHttpClientFactory _httpClientFactory;
-    private readonly ILogger<ReplicateService> _logger; // Loggerを追加
+    private readonly IConfiguration _config;
     private readonly IApiKeyService _apiKeyService;
-    private readonly IUserSettingsService _userSettingsService;
+    private readonly AppDbContext _context;
+    private readonly ILogger<ReplicateImageAdapter> _logger;
     private readonly string _defaultApiKey;
-    private readonly string _modelVersion;
+    private readonly string _defaultModelVersion;
     private readonly string _apiUrl = "https://api.replicate.com/v1/predictions";
     private readonly JsonSerializerOptions _jsonSerializerOptions = new() { PropertyNameCaseInsensitive = true };
     private readonly string _negativePrompt;
 
-
-    public ReplicateService(IHttpClientFactory httpClientFactory, IConfiguration configuration, ILogger<ReplicateService> logger, IApiKeyService apiKeyService, IUserSettingsService userSettingsService)
+    public ReplicateImageAdapter(
+        IHttpClientFactory httpClientFactory,
+        IConfiguration configuration,
+        IApiKeyService apiKeyService,
+        AppDbContext context,
+        ILogger<ReplicateImageAdapter> logger)
     {
         _httpClientFactory = httpClientFactory ?? throw new ArgumentNullException(nameof(httpClientFactory));
-        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        _config = configuration ?? throw new ArgumentNullException(nameof(configuration));
         _apiKeyService = apiKeyService ?? throw new ArgumentNullException(nameof(apiKeyService));
-        _userSettingsService = userSettingsService ?? throw new ArgumentNullException(nameof(userSettingsService));
+        _context = context ?? throw new ArgumentNullException(nameof(context));
+        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
-        _defaultApiKey = configuration["REPLICATE_API_TOKEN"] ?? throw new InvalidOperationException("Configuration missing: REPLICATE_API_TOKEN");
-        _modelVersion = "0fc0fa9885b284901a6f9c0b4d67701fd7647d157b88371427d63f8089ce140e";
+        _defaultApiKey = _config["REPLICATE_API_TOKEN"] ?? throw new InvalidOperationException("Configuration missing: REPLICATE_API_TOKEN");
+        _defaultModelVersion = _config["Replicate:ImageGenerationVersion"] ?? "0fc0fa9885b284901a6f9c0b4d67701fd7647d157b88371427d63f8089ce140e";
 
-        // 推奨ネガティブプロンプトを設定
+        // Default negative prompt for better image quality
         _negativePrompt = "lowres, (bad), text, error, fewer, extra, missing, worst quality, jpeg artifacts, low quality, watermark, unfinished, displeasing, oldest, early, chromatic aberration, signature, extra digits, artistic error, username, scan, [abstract]";
     }
 
     /// <summary>
-    /// Replicateで画像を生成し、そのバイナリデータとMIMEタイプを返します。
+    /// Generate image using Replicate API
     /// </summary>
-    public async Task<(byte[]? ImageBytes, string? MimeType)?> GenerateImageAsync(string prompt, int? userId = null, CancellationToken cancellationToken = default)
+    public async Task<ImageResult?> GenerateImageAsync(ImageRequest request, CancellationToken cancellationToken = default)
     {
-        var result = await GenerateImageWithDetailsAsync(prompt, userId, cancellationToken);
-        return result != null ? (result.ImageBytes, result.MimeType) : null;
-    }
-
-    /// <summary>
-    /// Replicateで画像を生成し、詳細な結果情報を返します。
-    /// </summary>
-    public async Task<ImageGenerationResult?> GenerateImageWithDetailsAsync(string prompt, int? userId = null, CancellationToken cancellationToken = default)
-    {
-        string apiKey = _defaultApiKey;
-        string modelVersion = _modelVersion;
-
-        if (userId.HasValue)
-        {
-            var userApiKey = await _apiKeyService.GetApiKeyAsync(userId.Value, "Replicate");
-            if (!string.IsNullOrEmpty(userApiKey))
-            {
-                apiKey = userApiKey;
-            }
-
-            var userSettings = await _userSettingsService.GetUserSettingsAsync(userId.Value);
-            var replicateModelSetting = userSettings.FirstOrDefault(s => s.ServiceType == "Replicate" && s.SettingKey == "ImageGenerationVersion");
-            if (replicateModelSetting != null && !string.IsNullOrEmpty(replicateModelSetting.SettingValue))
-            {
-                modelVersion = replicateModelSetting.SettingValue;
-            }
-        }
-
-        var httpClient = _httpClientFactory.CreateClient();
-        httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
-
-        // Create the final prompt with negative prompt
-        var finalPrompt = prompt;
-        var actualPromptUsed = finalPrompt;
-
-        string? pollingUrl = await StartPredictionAsync(httpClient, finalPrompt, modelVersion, cancellationToken);
-        if (string.IsNullOrEmpty(pollingUrl))
-        {
-            _logger.LogError("Failed to start prediction or get polling URL.");
-            return null;
-        }
-
-        string? imageUrl = await PollForPredictionResultAsync(httpClient, pollingUrl, cancellationToken);
-        if (string.IsNullOrEmpty(imageUrl))
-        {
-            _logger.LogError("Failed to get final image URL from polling.");
-            return null;
-        }
-
         try
         {
+            string apiKey = _defaultApiKey;
+            string modelVersion = _defaultModelVersion;
+
+            // BYOK pattern - get user-specific API key and model if available
+            if (request.UserId.HasValue)
+            {
+                var userApiKey = await _apiKeyService.GetApiKeyAsync(request.UserId.Value, "Replicate");
+                if (!string.IsNullOrEmpty(userApiKey))
+                {
+                    apiKey = userApiKey;
+                }
+
+                var user = await _context.Users
+                    .Include(u => u.AiSettings)
+                    .FirstOrDefaultAsync(u => u.Id == request.UserId.Value, cancellationToken);
+                
+                if (user?.AiSettings?.ImageGenerationModel != null)
+                {
+                    modelVersion = user.AiSettings.ImageGenerationModel;
+                }
+            }
+
+            var httpClient = _httpClientFactory.CreateClient();
+            httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
+
+            // Use provided negative prompt or default
+            var finalNegativePrompt = request.NegativePrompt ?? _negativePrompt;
+
+            // Start prediction
+            string? pollingUrl = await StartPredictionAsync(httpClient, request.Prompt, finalNegativePrompt, modelVersion, cancellationToken);
+            if (string.IsNullOrEmpty(pollingUrl))
+            {
+                _logger.LogError("Failed to start prediction or get polling URL for prompt: {Prompt}", request.Prompt);
+                return null;
+            }
+
+            // Poll for result
+            string? imageUrl = await PollForPredictionResultAsync(httpClient, pollingUrl, cancellationToken);
+            if (string.IsNullOrEmpty(imageUrl))
+            {
+                _logger.LogError("Failed to get final image URL from polling for prompt: {Prompt}", request.Prompt);
+                return null;
+            }
+
+            // Download image
             _logger.LogInformation("Downloading image from URL: {ImageUrl}", imageUrl);
             var imageResponse = await httpClient.GetAsync(imageUrl, cancellationToken);
             if (!imageResponse.IsSuccessStatusCode)
@@ -126,31 +128,47 @@ public class ReplicateService : IImagenService
             }
 
             var imageBytes = await imageResponse.Content.ReadAsByteArrayAsync(cancellationToken);
-            var mimeType = imageResponse.Content.Headers.ContentType?.ToString() ?? "image/png"; // 不明な場合はpngに
+            var mimeType = imageResponse.Content.Headers.ContentType?.ToString() ?? "image/png";
 
-            _logger.LogInformation("Image downloaded successfully. Size: {Size} bytes, MimeType: {MimeType}", imageBytes.Length, mimeType);
-            
-            return new ImageGenerationResult(
+            _logger.LogInformation("Image generated successfully. Size: {Size} bytes, MimeType: {MimeType}", imageBytes.Length, mimeType);
+
+            return new ImageResult(
                 ImageBytes: imageBytes,
                 MimeType: mimeType,
                 ModelId: modelVersion,
                 ServiceName: "Replicate",
-                ActualPrompt: actualPromptUsed
+                ActualPrompt: request.Prompt,
+                Width: request.Width,
+                Height: request.Height
             );
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Exception occurred while downloading the generated image from {ImageUrl}", imageUrl);
-            return null;
+            _logger.LogError(ex, "Error generating image with Replicate for prompt: {Prompt}", request.Prompt);
+            throw new InvalidOperationException($"Failed to generate image with Replicate: {ex.Message}", ex);
         }
     }
 
-    // 予測を開始し、ポーリング用のURLを取得するメソッド
-    private async Task<string?> StartPredictionAsync(HttpClient httpClient, string prompt, string modelVersion, CancellationToken cancellationToken)
+    /// <summary>
+    /// Get capabilities of Replicate image model
+    /// </summary>
+    public ModelCapabilities GetCapabilities()
+    {
+        return new ModelCapabilities(
+            ModelId: _defaultModelVersion,
+            ServiceName: "Replicate",
+            SupportsStreaming: false,
+            SupportsImages: true,
+            MaxTokens: null,
+            SupportedFormats: new List<string> { "image/png", "image/jpeg" }
+        );
+    }
+
+    private async Task<string?> StartPredictionAsync(HttpClient httpClient, string prompt, string negativePrompt, string modelVersion, CancellationToken cancellationToken)
     {
         var requestBody = new ReplicateRequest(
             Version: modelVersion,
-            Input: new ReplicateInput(Prompt: prompt, NegativePrompt: _negativePrompt)
+            Input: new ReplicateInput(Prompt: prompt, NegativePrompt: negativePrompt)
         );
         var jsonBody = JsonSerializer.Serialize(requestBody);
         var content = new StringContent(jsonBody, Encoding.UTF8, "application/json");
@@ -159,7 +177,6 @@ public class ReplicateService : IImagenService
 
         try
         {
-            // Preferヘッダーは付けずに、非同期でリクエストを投げる
             var response = await httpClient.PostAsync(_apiUrl, content, cancellationToken);
 
             if (!response.IsSuccessStatusCode)
@@ -182,11 +199,10 @@ public class ReplicateService : IImagenService
         }
     }
 
-    // 予測結果をポーリングして最終的な画像URLを取得するメソッド
     private async Task<string?> PollForPredictionResultAsync(HttpClient httpClient, string pollingUrl, CancellationToken cancellationToken)
     {
-        var pollingTimeout = TimeSpan.FromMinutes(3); // タイムアウトを3分に設定
-        var pollingInterval = TimeSpan.FromSeconds(3); // ポーリング間隔を3秒に設定
+        var pollingTimeout = TimeSpan.FromMinutes(3);
+        var pollingInterval = TimeSpan.FromSeconds(3);
 
         using var timeoutCts = new CancellationTokenSource(pollingTimeout);
         using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeoutCts.Token);
@@ -212,12 +228,11 @@ public class ReplicateService : IImagenService
                 {
                     case "succeeded":
                         _logger.LogInformation("Prediction succeeded.");
-                        // Outputが配列の場合、最初の要素を返す
+                        // Output could be array or string
                         if (result?.Output?.ValueKind == JsonValueKind.Array)
                         {
                             return result.Output.Value.EnumerateArray().FirstOrDefault().GetString();
                         }
-                        // 文字列の場合もあるかもしれないので対応
                         return result?.Output?.ValueKind == JsonValueKind.String ? result.Output.Value.GetString() : null;
 
                     case "failed":
@@ -246,10 +261,10 @@ public class ReplicateService : IImagenService
             catch (Exception ex)
             {
                 _logger.LogError(ex, "An exception occurred during polling.");
-                return null; // 不明なエラーでループを抜ける
+                return null;
             }
         }
 
-        return null; // ループが正常に終了することは通常ないが念のため
+        return null;
     }
 }

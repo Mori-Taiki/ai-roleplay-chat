@@ -31,6 +31,14 @@ public class User
     [Column(TypeName = "DATETIME(6)")]
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 
+    /// <summary>
+    /// Reference to the user's default AI generation settings
+    /// </summary>
+    public int? AiSettingsId { get; set; }
+    
+    [ForeignKey(nameof(AiSettingsId))]
+    public virtual AiGenerationSettings? AiSettings { get; set; }
+
     // 将来的に他のエンティティとのリレーションを追加する可能性
     // public virtual ICollection<CharacterProfile> CharacterProfiles { get; set; } = new List<CharacterProfile>();
     // public virtual ICollection<ChatSession> ChatSessions { get; set; } = new List<ChatSession>();

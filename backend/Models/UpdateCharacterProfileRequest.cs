@@ -21,5 +21,10 @@ public record UpdateCharacterProfileRequest(
     string? Appearance,
 
     [StringLength(30, ErrorMessage = "ユーザーの呼び方は30文字以内で入力してください。")]
-    string? UserAppellation
+    string? UserAppellation,
+
+    /// <summary>
+    /// AI generation settings for this character. If null, uses user defaults or system defaults.
+    /// </summary>
+    AiGenerationSettingsRequest? AiSettings
 );

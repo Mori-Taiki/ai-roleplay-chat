@@ -35,8 +35,20 @@ namespace AiRoleplayChat.Backend.Domain.Entities
         [Column(TypeName = "TEXT")]
         public string? Appearance { get; set; }
 
-        [StringLength(30)] // ユーザー呼称の最大文字数制限
+        /// <summary>
+        /// ユーザー呼称の最大文字数制限
+        /// </summary>
+        [StringLength(30)]
         public string? UserAppellation { get; set; }
+
+        /// <summary>
+        /// Reference to character-specific AI generation settings
+        /// If null, uses user's default settings or system defaults
+        /// </summary>
+        public int? AiSettingsId { get; set; }
+        
+        [ForeignKey(nameof(AiSettingsId))]
+        public virtual AiGenerationSettings? AiSettings { get; set; }
 
         [Required]
         public bool IsActive { get; set; } = true; // デフォルト値を設定
