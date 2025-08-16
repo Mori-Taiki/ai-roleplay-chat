@@ -17,6 +17,22 @@
 2. **バックエンドデプロイメント** (`deploy_backend_job`): ASP.NET Core バックエンドを App Service にデプロイ
 3. **PR クリーンアップ** (`close_pull_request_job`): PR がクローズされた際にプレビューデプロイメントをクリーンアップ
 
+### フロントエンドビルドプロセス
+
+フロントエンドデプロイメントでは、以下のステップが実行されます：
+
+1. **Node.js セットアップ**: `frontend/.nvmrc` で指定されたバージョン（Node.js 20+）を使用
+2. **依存関係インストール**: `npm ci` で依存関係をクリーンインストール
+3. **型チェック**: `npm run typecheck` でTypeScriptの型エラーをチェック
+4. **リント**: `npm run lint` でコード品質をチェック（エラーがあってもデプロイは継続）
+5. **ビルドとデプロイ**: TypeScriptコンパイルとViteビルドを実行してAzure Static Web Appsにデプロイ
+
+### ビルド要件
+
+- **Node.js バージョン**: 20.0.0 以上（react-router-dom v7 の要件）
+- **TypeScript**: 厳密な型チェックが有効（ビルド失敗時はデプロイ停止）
+- **エラー処理**: TypeScript エラーがある場合はデプロイを中止し、成果物が正しくビルドされた状態でのみデプロイ実行
+
 ## 必要な GitHub シークレット
 
 ### 既存のシークレット（フロントエンド）
@@ -118,17 +134,33 @@ App Service に以下のアプリケーション設定が構成されている�
 
 ### よくある問題
 
-1. **ビルド失敗**: .NET SDK バージョンの互換性を確認
-2. **認証問題**: Azure AD B2C 設定を検証
-3. **データベース接続**: 接続文字列が正しいことを確認
-4. **API 呼び出し失敗**: CORS 設定とフロントエンド URL 構成を確認
+1. **フロントエンド TypeScript ビルド失敗**: 
+   - TypeScript エラーがある場合、`npm run typecheck` でローカル確認
+   - API 型定義とフロントエンド型の不一致を確認
+   - 未使用変数や不正な型アクセスを修正
+2. **Node.js バージョン不一致**: 
+   - `frontend/.nvmrc` で Node.js 20+ が指定されていることを確認
+   - react-router-dom v7 は Node.js 20+ が必須
+3. **Oryx ビルド問題**: 
+   - `frontend/.oryxrc` でプラットフォームバージョンが正しく指定されていることを確認
+   - Azure Static Web Apps が正しい Node.js バージョンを使用していることを確認
+4. **ビルド失敗**: .NET SDK バージョンの互換性を確認
+5. **認証問題**: Azure AD B2C 設定を検証
+6. **データベース接続**: 接続文字列が正しいことを確認
+7. **API 呼び出し失敗**: CORS 設定とフロントエンド URL 構成を確認
 
 ### デバッグ手順
 
 1. 具体的なエラーメッセージについて GitHub Actions ログを確認
 2. すべての必要なシークレットが正しく設定されていることを確認
-3. App Service 構成がローカル開発環境と一致することを確認
-4. App Service からのデータベース接続をテスト
+3. **フロントエンド TypeScript エラー**: 
+   - ローカルで `npm run typecheck` を実行
+   - ローカルで `npm run build` を実行してエラーを特定
+4. **Node.js バージョン問題**: 
+   - GitHub Actions ログで実際に使用された Node.js バージョンを確認
+   - `frontend/.nvmrc` と `frontend/.oryxrc` の設定を確認
+5. App Service 構成がローカル開発環境と一致することを確認
+6. App Service からのデータベース接続をテスト
 
 ## 手動デプロイメント（緊急時）
 
