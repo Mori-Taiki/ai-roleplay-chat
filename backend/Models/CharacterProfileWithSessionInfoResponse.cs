@@ -18,5 +18,6 @@ namespace AiRoleplayChat.Backend.Models
         public string? LastMessageSnippet { get; set; }
         public string? Appearance { get; set; }
         public string? UserAppellation { get; set; }
+        public AiGenerationSettingsResponse? AiSettings { get; set; }
     }
 }

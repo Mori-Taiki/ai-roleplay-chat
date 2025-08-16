@@ -1,3 +1,5 @@
+import { AiGenerationSettingsRequest } from './AiGenerationSettings';
+
 export interface CreateCharacterProfileRequest {
     name: string;
     personality: string | null;
@@ -9,8 +11,5 @@ export interface CreateCharacterProfileRequest {
     isActive: boolean;
     appearance: string | null;
     userAppellation: string | null;
-    textModelProvider: string | null;
-    textModelId: string | null;
-    imageModelProvider: string | null;
-    imageModelId: string | null;
+    aiSettings: AiGenerationSettingsRequest | null;
   }

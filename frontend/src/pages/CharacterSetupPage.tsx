@@ -8,11 +8,12 @@ import {
 } from 'react-hook-form'; // react-hook-form をインポート
 import { CreateCharacterProfileRequest } from '../models/CreateCharacterProfileRequest';
 import { UpdateCharacterProfileRequest } from '../models/UpdateCharacterProfileRequest';
+import { AiGenerationSettingsRequest } from '../models/AiGenerationSettings';
 import { useCharacterProfile } from '../hooks/useCharacterProfile'; // カスタムフック
-import { useProviders } from '../hooks/useProviders'; // プロバイダー情報取得用フック
 import styles from './CharacterSetupPage.module.css';
 import FormField from '../components/FormField';
 import Button from '../components/Button';
+import AiModelSettingsForm from '../components/AiModelSettingsForm';
 
 interface DialoguePairForm {
   user: string;
@@ -32,10 +33,7 @@ interface CharacterFormData {
   userAppellation: string;
   isActive: boolean;
   dialoguePairs: DialoguePairForm[];
-  textModelProvider: string | null;
-  textModelId: string | null;
-  imageModelProvider: string | null;
-  imageModelId: string | null;
+  aiSettings: AiGenerationSettingsRequest | null;
 }
 
 const CharacterSetupPage: React.FC = () => {
@@ -57,14 +55,6 @@ const CharacterSetupPage: React.FC = () => {
     deleteCharacter,
   } = useCharacterProfile();
 
-  // プロバイダー情報を取得
-  const {
-    getTextProviders,
-    getTextModelsForProvider,
-    getImageProviders,
-    getImageModelsForProvider,
-  } = useProviders();
-
   // --- react-hook-form の設定 ---
   const {
     register, // 入力要素を登録する関数
@@ -73,6 +63,8 @@ const CharacterSetupPage: React.FC = () => {
     reset, // フォーム値をリセット/初期化する関数
     watch, // 特定のフォーム値を監視する関数 (isSystemPromptCustomized で使用)
     formState: { errors, isSubmitting: isFormSubmitting }, // フォームの状態 (エラー、送信中かなど)
+    setValue, // 値を手動で設定する関数
+    getValues, // 現在のフォーム値を取得する関数
   } = useForm<CharacterFormData>({
     // デフォルト値を設定
     defaultValues: {
@@ -88,10 +80,7 @@ const CharacterSetupPage: React.FC = () => {
       userAppellation: '',
       isActive: true,
       dialoguePairs: [], // useFieldArray 用
-      textModelProvider: null,
-      textModelId: null,
-      imageModelProvider: null,
-      imageModelId: null,
+      aiSettings: null,
     },
   });
 
@@ -103,10 +92,6 @@ const CharacterSetupPage: React.FC = () => {
 
   // isSystemPromptCustomized の値を監視
   const isCustomChecked = watch('isSystemPromptCustomized');
-  
-  // AIモデル設定の監視
-  const watchedTextProvider = watch('textModelProvider');
-  const watchedImageProvider = watch('imageModelProvider');
 
   // --- 編集モード時のデータ読み込みとフォームへの反映 ---
   useEffect(() => {
@@ -150,10 +135,12 @@ const CharacterSetupPage: React.FC = () => {
           user: p.user ?? '',
           model: p.model ?? '',
         })), // useFieldArray 用
-        textModelProvider: initialCharacterData.textModelProvider ?? null,
-        textModelId: initialCharacterData.textModelId ?? null,
-        imageModelProvider: initialCharacterData.imageModelProvider ?? null,
-        imageModelId: initialCharacterData.imageModelId ?? null,
+        aiSettings: initialCharacterData.aiSettings ? {
+          chatGenerationModel: initialCharacterData.aiSettings.chatGenerationModel,
+          imagePromptGenerationModel: initialCharacterData.aiSettings.imagePromptGenerationModel,
+          imageGenerationModel: initialCharacterData.aiSettings.imageGenerationModel,
+          imageGenerationPromptInstruction: initialCharacterData.aiSettings.imageGenerationPromptInstruction,
+        } : null,
       });
     }
   }, [initialCharacterData, reset]); // reset も依存配列に追加推奨
@@ -192,10 +179,7 @@ const CharacterSetupPage: React.FC = () => {
         appearance: formData.appearance !== '' ? formData.appearance : null,
         userAppellation: formData.userAppellation !== '' ? formData.userAppellation : null,
         isActive: formData.isActive,
-        textModelProvider: formData.textModelProvider !== '' ? formData.textModelProvider : null,
-        textModelId: formData.textModelId !== '' ? formData.textModelId : null,
-        imageModelProvider: formData.imageModelProvider !== '' ? formData.imageModelProvider : null,
-        imageModelId: formData.imageModelId !== '' ? formData.imageModelId : null,
+        aiSettings: formData.aiSettings,
       };
       const success = await updateCharacter(characterId, requestData); // カスタムフック呼び出し
       if (success) {
@@ -217,10 +201,7 @@ const CharacterSetupPage: React.FC = () => {
         appearance: formData.appearance !== '' ? formData.appearance : null,
         userAppellation: formData.userAppellation !== '' ? formData.userAppellation : null,
         isActive: formData.isActive, // デフォルト true だが念のため
-        textModelProvider: formData.textModelProvider !== '' ? formData.textModelProvider : null,
-        textModelId: formData.textModelId !== '' ? formData.textModelId : null,
-        imageModelProvider: formData.imageModelProvider !== '' ? formData.imageModelProvider : null,
-        imageModelId: formData.imageModelId !== '' ? formData.imageModelId : null,
+        aiSettings: formData.aiSettings,
       };
       const createdCharacter = await createCharacter(requestData); // カスタムフック呼び出し
       if (createdCharacter) {
@@ -446,89 +427,12 @@ const CharacterSetupPage: React.FC = () => {
         {/* --- AIモデル設定 --- */}
         <div className={styles.formGroup}>
           <h3 className={styles.sectionTitle}>AIモデル設定</h3>
-          <small className={styles.helpText}>
-            未設定の場合は、ユーザーのグローバル設定またはシステムデフォルトが使用されます。
-          </small>
-          
-          {/* 文章生成モデル設定 */}
-          <div className={styles.modelSection}>
-            <h4 className={styles.subsectionTitle}>文章生成モデル</h4>
-            
-            <div className={styles.providerRow}>
-              <div className={styles.providerField}>
-                <label htmlFor="textModelProvider" className={styles.label}>プロバイダー:</label>
-                <select
-                  id="textModelProvider"
-                  {...register('textModelProvider')}
-                  className={styles.select}
-                >
-                  <option value="">-- 未設定（デフォルトを使用）--</option>
-                  {getTextProviders().map((provider) => (
-                    <option key={provider} value={provider}>
-                      {provider}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              
-              <div className={styles.modelField}>
-                <label htmlFor="textModelId" className={styles.label}>モデル:</label>
-                <select
-                  id="textModelId"
-                  {...register('textModelId')}
-                  className={styles.select}
-                  disabled={!watchedTextProvider}
-                >
-                  <option value="">-- 未設定（プロバイダーデフォルトを使用）--</option>
-                  {watchedTextProvider && getTextModelsForProvider(watchedTextProvider).map((model) => (
-                    <option key={model.key} value={model.value}>
-                      {model.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-          </div>
-          
-          {/* 画像生成モデル設定 */}
-          <div className={styles.modelSection}>
-            <h4 className={styles.subsectionTitle}>画像生成モデル</h4>
-            
-            <div className={styles.providerRow}>
-              <div className={styles.providerField}>
-                <label htmlFor="imageModelProvider" className={styles.label}>プロバイダー:</label>
-                <select
-                  id="imageModelProvider"
-                  {...register('imageModelProvider')}
-                  className={styles.select}
-                >
-                  <option value="">-- 未設定（デフォルトを使用）--</option>
-                  {getImageProviders().map((provider) => (
-                    <option key={provider} value={provider}>
-                      {provider}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              
-              <div className={styles.modelField}>
-                <label htmlFor="imageModelId" className={styles.label}>モデル:</label>
-                <select
-                  id="imageModelId"
-                  {...register('imageModelId')}
-                  className={styles.select}
-                  disabled={!watchedImageProvider}
-                >
-                  <option value="">-- 未設定（プロバイダーデフォルトを使用）--</option>
-                  {watchedImageProvider && getImageModelsForProvider(watchedImageProvider).map((model) => (
-                    <option key={model.key} value={model.value}>
-                      {model.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-          </div>
+        {/* AI Model Settings */}
+        <AiModelSettingsForm 
+          aiSettings={getValues('aiSettings')}
+          onSettingsChange={(settings) => setValue('aiSettings', settings)}
+          showFallbackNote={true}
+        />
         </div>
 
         {/* --- 送信ボタン・エラー表示 --- */}

@@ -11,6 +11,7 @@ public class AppDbContext : DbContext
     public DbSet<ChatSession> ChatSessions { get; set; } = null!;
     public DbSet<User> Users { get; set; } = null!;
     public DbSet<UserSetting> UserSettings { get; set; } = null!;
+    public DbSet<AiGenerationSettings> AiGenerationSettings { get; set; } = null!;
 
     public AppDbContext(DbContextOptions<AppDbContext> options) : base(options) { }
 
@@ -70,6 +71,23 @@ public class AppDbContext : DbContext
         modelBuilder.Entity<UserSetting>(entity =>
         {
             entity.HasIndex(e => new { e.UserId, e.ServiceType, e.SettingKey }).IsUnique();
+        });
+
+        // --- AiGenerationSettings relationships ---
+        modelBuilder.Entity<User>(entity =>
+        {
+            entity.HasOne(u => u.AiSettings)
+                  .WithMany()
+                  .HasForeignKey(u => u.AiSettingsId)
+                  .OnDelete(DeleteBehavior.SetNull); // AI設定削除時はnullに設定
+        });
+
+        modelBuilder.Entity<CharacterProfile>(entity =>
+        {
+            entity.HasOne(c => c.AiSettings)
+                  .WithMany()
+                  .HasForeignKey(c => c.AiSettingsId)
+                  .OnDelete(DeleteBehavior.SetNull); // AI設定削除時はnullに設定
         });
     }
 }

@@ -13,8 +13,5 @@ public record CharacterProfileResponse(
     bool IsSystemPromptCustomized,
     string? Appearance,
     string? UserAppellation,
-    string? TextModelProvider,
-    string? TextModelId,
-    string? ImageModelProvider,
-    string? ImageModelId
+    AiGenerationSettingsResponse? AiSettings
 );

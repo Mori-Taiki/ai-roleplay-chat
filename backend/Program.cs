@@ -53,6 +53,7 @@ builder.Services.AddScoped<IChatMessageService, ChatMessageService>();
 builder.Services.AddScoped<IChatSessionService, ChatSessionService>();
 builder.Services.AddScoped<IApiKeyService, ApiKeyService>();
 builder.Services.AddScoped<IUserSettingsService, UserSettingsService>();
+builder.Services.AddScoped<IAiGenerationSettingsService, AiGenerationSettingsService>();
 
 // --- Hexagonal Architecture Services ---
 // Configure ProviderOptions

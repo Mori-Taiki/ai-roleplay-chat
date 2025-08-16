@@ -1,8 +1,10 @@
 using AiRoleplayChat.Backend.Application.Ports;
+using AiRoleplayChat.Backend.Data;
 using AiRoleplayChat.Backend.Domain.Entities;
 using AiRoleplayChat.Backend.Options;
 using AiRoleplayChat.Backend.Services;
 using Microsoft.Extensions.Options;
+using Microsoft.EntityFrameworkCore;
 
 namespace AiRoleplayChat.Backend.Application.Routing;
 
@@ -36,15 +38,21 @@ public class LlmRouter : ILlmRouter
 {
     private readonly IServiceProvider _serviceProvider;
     private readonly IUserSettingsService _userSettingsService;
+    private readonly IAiGenerationSettingsService _aiSettingsService;
+    private readonly AppDbContext _context;
     private readonly ProviderOptions _providerOptions;
 
     public LlmRouter(
         IServiceProvider serviceProvider,
         IUserSettingsService userSettingsService,
+        IAiGenerationSettingsService aiSettingsService,
+        AppDbContext context,
         IOptions<ProviderOptions> providerOptions)
     {
         _serviceProvider = serviceProvider ?? throw new ArgumentNullException(nameof(serviceProvider));
         _userSettingsService = userSettingsService ?? throw new ArgumentNullException(nameof(userSettingsService));
+        _aiSettingsService = aiSettingsService ?? throw new ArgumentNullException(nameof(aiSettingsService));
+        _context = context ?? throw new ArgumentNullException(nameof(context));
         _providerOptions = providerOptions?.Value ?? throw new ArgumentNullException(nameof(providerOptions));
     }
 
@@ -53,28 +61,34 @@ public class LlmRouter : ILlmRouter
     /// </summary>
     public async Task<ITextModelPort> ResolveTextModelAsync(CharacterProfile? characterProfile, int? userId)
     {
-        string textProvider = _providerOptions.Default.TextProvider;
+        string? textModel = null;
 
-        // Priority 1: Character-specific text model
-        if (characterProfile != null && !string.IsNullOrEmpty(characterProfile.TextModelProvider))
+        // Priority 1: Character-specific AI settings
+        if (characterProfile?.AiSettingsId.HasValue == true)
         {
-            textProvider = characterProfile.TextModelProvider;
+            var characterAiSettings = await _aiSettingsService.GetSettingsAsync(characterProfile.AiSettingsId.Value);
+            textModel = characterAiSettings?.ChatGenerationModel;
         }
-        // Priority 2: User-specific text model
-        else if (userId.HasValue)
+
+        // Priority 2: User-specific AI settings
+        if (string.IsNullOrEmpty(textModel) && userId.HasValue)
         {
-            var userSettings = await _userSettingsService.GetUserSettingsAsync(userId.Value);
-            var textProviderSetting = userSettings.FirstOrDefault(s => 
-                s.SettingKey == "DefaultTextProvider" && !string.IsNullOrEmpty(s.SettingValue));
+            var user = await _context.Users
+                .Include(u => u.AiSettings)
+                .FirstOrDefaultAsync(u => u.Id == userId.Value);
             
-            if (textProviderSetting != null)
-            {
-                textProvider = textProviderSetting.SettingValue!;
-            }
+            textModel = user?.AiSettings?.ChatGenerationModel;
         }
 
-        // Resolve provider to service
-        return ResolveTextProvider(textProvider);
+        // Priority 3: Default from configuration
+        if (string.IsNullOrEmpty(textModel))
+        {
+            textModel = _providerOptions.Default.TextProvider;
+        }
+
+        // Resolve provider name to service (extract provider from full model name)
+        string providerName = ExtractProviderFromModel(textModel);
+        return ResolveTextProvider(providerName);
     }
 
     /// <summary>
@@ -82,28 +96,59 @@ public class LlmRouter : ILlmRouter
     /// </summary>
     public async Task<IImageModelPort> ResolveImageModelAsync(CharacterProfile? characterProfile, int? userId)
     {
-        string imageProvider = _providerOptions.Default.ImageProvider;
+        string? imageModel = null;
 
-        // Priority 1: Character-specific image model
-        if (characterProfile != null && !string.IsNullOrEmpty(characterProfile.ImageModelProvider))
+        // Priority 1: Character-specific AI settings
+        if (characterProfile?.AiSettingsId.HasValue == true)
         {
-            imageProvider = characterProfile.ImageModelProvider;
+            var characterAiSettings = await _aiSettingsService.GetSettingsAsync(characterProfile.AiSettingsId.Value);
+            imageModel = characterAiSettings?.ImageGenerationModel;
         }
-        // Priority 2: User-specific image model
-        else if (userId.HasValue)
+
+        // Priority 2: User-specific AI settings
+        if (string.IsNullOrEmpty(imageModel) && userId.HasValue)
         {
-            var userSettings = await _userSettingsService.GetUserSettingsAsync(userId.Value);
-            var imageProviderSetting = userSettings.FirstOrDefault(s => 
-                s.SettingKey == "DefaultImageProvider" && !string.IsNullOrEmpty(s.SettingValue));
+            var user = await _context.Users
+                .Include(u => u.AiSettings)
+                .FirstOrDefaultAsync(u => u.Id == userId.Value);
             
-            if (imageProviderSetting != null)
-            {
-                imageProvider = imageProviderSetting.SettingValue!;
-            }
+            imageModel = user?.AiSettings?.ImageGenerationModel;
         }
 
-        // Resolve provider to service
-        return ResolveImageProvider(imageProvider);
+        // Priority 3: Default from configuration
+        if (string.IsNullOrEmpty(imageModel))
+        {
+            imageModel = _providerOptions.Default.ImageProvider;
+        }
+
+        // Resolve provider name to service (extract provider from full model name)
+        string providerName = ExtractProviderFromModel(imageModel);
+        return ResolveImageProvider(providerName);
+    }
+
+    /// <summary>
+    /// Extract provider name from full model string
+    /// e.g., "gemini-1.5-flash-latest" -> "gemini"
+    /// e.g., "black-forest-labs/flux-1-dev" -> "replicate" 
+    /// </summary>
+    private string ExtractProviderFromModel(string? modelName)
+    {
+        if (string.IsNullOrEmpty(modelName))
+            return _providerOptions.Default.TextProvider;
+
+        // Common patterns for different providers
+        if (modelName.StartsWith("gemini", StringComparison.OrdinalIgnoreCase))
+            return "Gemini";
+        
+        if (modelName.Contains("/") || modelName.StartsWith("black-forest-labs", StringComparison.OrdinalIgnoreCase))
+            return "Replicate";
+            
+        if (modelName.StartsWith("gpt", StringComparison.OrdinalIgnoreCase) || 
+            modelName.StartsWith("claude", StringComparison.OrdinalIgnoreCase))
+            return "OpenAI"; // or appropriate provider
+
+        // Default fallback - assume it's the provider name itself
+        return modelName.Split('-', '/')[0];
     }
 
     private ITextModelPort ResolveTextProvider(string providerName)
