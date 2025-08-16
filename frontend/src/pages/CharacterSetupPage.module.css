@@ -159,3 +159,81 @@
       margin-top: 1rem;
       font-weight: bold;
   }
+
+  /* AIモデル設定用スタイル */
+  .sectionTitle {
+    margin-top: 2rem;
+    margin-bottom: 0.5rem;
+    font-size: 1.25rem;
+    font-weight: bold;
+    color: #333;
+  }
+
+  .helpText {
+    display: block;
+    margin-bottom: 1rem;
+    font-size: 0.9rem;
+    color: #666;
+    font-style: italic;
+  }
+
+  .modelSection {
+    margin-bottom: 1.5rem;
+    padding: 1rem;
+    border: 1px solid #e9ecef;
+    border-radius: 6px;
+    background-color: #f8f9fa;
+  }
+
+  .subsectionTitle {
+    margin-top: 0;
+    margin-bottom: 0.75rem;
+    font-size: 1rem;
+    font-weight: 600;
+    color: #495057;
+  }
+
+  .providerRow {
+    display: flex;
+    gap: 1rem;
+    align-items: flex-end;
+  }
+
+  .providerField,
+  .modelField {
+    flex: 1;
+  }
+
+  .select {
+    width: 100%;
+    padding: 0.5rem;
+    border: 1px solid #ced4da;
+    border-radius: 4px;
+    background-color: white;
+    font-family: inherit;
+    font-size: 0.95rem;
+  }
+
+  .select:disabled {
+    background-color: #e9ecef;
+    color: #6c757d;
+    cursor: not-allowed;
+  }
+
+  .select:focus {
+    outline: none;
+    border-color: #80bdff;
+    box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+  }
+
+  @media (max-width: 768px) {
+    .providerRow {
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+    
+    .sectionTitle {
+      margin-top: 1.5rem;
+      font-size: 1.1rem;
+    }
+  }

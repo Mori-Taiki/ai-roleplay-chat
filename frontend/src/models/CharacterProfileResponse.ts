@@ -11,6 +11,10 @@ export interface CharacterProfileResponse {
     isSystemPromptCustomized: boolean;
     appearance: string | null;
     userAppellation: string | null;
+    textModelProvider: string | null;
+    textModelId: string | null;
+    imageModelProvider: string | null;
+    imageModelId: string | null;
     // 必要に応じて createdAt や updatedAt も追加
     // createdAt?: string; // APIが文字列で返す場合
     // updatedAt?: string;

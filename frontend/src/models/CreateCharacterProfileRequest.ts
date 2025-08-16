@@ -9,4 +9,8 @@ export interface CreateCharacterProfileRequest {
     isActive: boolean;
     appearance: string | null;
     userAppellation: string | null;
+    textModelProvider: string | null;
+    textModelId: string | null;
+    imageModelProvider: string | null;
+    imageModelId: string | null;
   }

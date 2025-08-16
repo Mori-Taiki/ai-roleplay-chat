@@ -146,6 +146,10 @@ const CharacterImagesPage: React.FC = () => {
       userAppellation: character.userAppellation || null,
       isActive: character.isActive,
       isSystemPromptCustomized: character.isSystemPromptCustomized,
+      textModelProvider: character.textModelProvider || null,
+      textModelId: character.textModelId || null,
+      imageModelProvider: character.imageModelProvider || null,
+      imageModelId: character.imageModelId || null,
     });
 
     if (success) {
