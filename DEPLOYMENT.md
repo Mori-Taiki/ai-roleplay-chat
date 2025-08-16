@@ -1,113 +1,149 @@
-# Deployment Guide
+# デプロイメントガイド
 
-This document describes the automated deployment setup for the AI Roleplay Chat application.
+このドキュメントは、AI ロールプレイチャットアプリケーションの自動デプロイメント設定について説明します。
 
-## Overview
+## 概要
 
-The application is deployed to Azure using GitHub Actions with the following architecture:
-- **Frontend**: Azure Static Web Apps
-- **Backend**: Azure App Service (Linux)
-- **Database**: Azure Database for MySQL
+このアプリケーションは GitHub Actions を使用して Azure にデプロイされ、以下のアーキテクチャを採用しています：
+- **フロントエンド**: Azure Static Web Apps
+- **バックエンド**: Azure App Service (Linux)
+- **データベース**: Azure Database for MySQL
 
-## GitHub Actions Workflow
+## GitHub Actions ワークフロー
 
-The deployment is triggered automatically when code is pushed to the `main` branch. The workflow includes three jobs:
+デプロイメントは `main` ブランチにコードがプッシュされたときに自動的にトリガーされます。ワークフローには3つのジョブが含まれています：
 
-1. **Frontend Deployment** (`build_and_deploy_job`): Deploys React frontend to Static Web Apps
-2. **Backend Deployment** (`deploy_backend_job`): Deploys ASP.NET Core backend to App Service
-3. **PR Cleanup** (`close_pull_request_job`): Cleans up preview deployments when PRs are closed
+1. **フロントエンドデプロイメント** (`build_and_deploy_job`): React フロントエンドを Static Web Apps にデプロイ
+2. **バックエンドデプロイメント** (`deploy_backend_job`): ASP.NET Core バックエンドを App Service にデプロイ
+3. **PR クリーンアップ** (`close_pull_request_job`): PR がクローズされた際にプレビューデプロイメントをクリーンアップ
 
-## Required GitHub Secrets
+## 必要な GitHub シークレット
 
-### Existing Secrets (Frontend)
-- `AZURE_STATIC_WEB_APPS_API_TOKEN_BLUE_PLANT_09D009000`: Static Web Apps deployment token
-- `PRODUCTION_API_URL`: Backend API base URL
-- `PRODUCTION_B2C_CLIENT_ID`: Azure AD B2C client ID
-- `PRODUCTION_B2C_AUTHORITY`: Azure AD B2C authority URL
-- `PRODUCTION_B2C_KNOWN_AUTHORITIES`: Azure AD B2C known authorities
-- `PRODUCTION_B2C_REDIRECT_URI`: Azure AD B2C redirect URI
-- `PRODUCTION_B2C_API_SCOPE_URI`: Azure AD B2C API scope URI
+### 既存のシークレット（フロントエンド）
+- `AZURE_STATIC_WEB_APPS_API_TOKEN_BLUE_PLANT_09D009000`: Static Web Apps デプロイメントトークン
+- `PRODUCTION_API_URL`: バックエンド API ベース URL
+- `PRODUCTION_B2C_CLIENT_ID`: Azure AD B2C クライアント ID
+- `PRODUCTION_B2C_AUTHORITY`: Azure AD B2C オーソリティ URL
+- `PRODUCTION_B2C_KNOWN_AUTHORITIES`: Azure AD B2C 既知オーソリティ
+- `PRODUCTION_B2C_REDIRECT_URI`: Azure AD B2C リダイレクト URI
+- `PRODUCTION_B2C_API_SCOPE_URI`: Azure AD B2C API スコープ URI
 
-### New Secrets (Backend)
-Add the following secrets to your GitHub repository:
+### 新規シークレット（バックエンド）
+以下のシークレットを GitHub リポジトリに追加してください：
 
-- `AZURE_APP_SERVICE_NAME`: The name of your Azure App Service
-- `AZURE_APP_SERVICE_PUBLISH_PROFILE`: The publish profile XML content from Azure App Service
+- `AZURE_APP_SERVICE_NAME`: Azure App Service の名前
+- `AZURE_APP_SERVICE_PUBLISH_PROFILE`: Azure App Service から取得したパブリッシュプロファイル XML コンテンツ
 
-## Setting up App Service Deployment
+## App Service デプロイメント設定
 
-### 1. Get the Publish Profile
+### 1. パブリッシュプロファイルの取得
 
-1. Go to your Azure App Service in the Azure Portal
-2. Click **Get publish profile** in the Overview blade
-3. Copy the entire contents of the downloaded `.publishsettings` file
-4. Add it as the `AZURE_APP_SERVICE_PUBLISH_PROFILE` secret in GitHub
+1. Azure ポータルで Azure App Service に移動
+2. 概要ブレードの **パブリッシュプロファイルの取得** をクリック
+3. ダウンロードされた `.publishsettings` ファイルの全内容をコピー
+4. GitHub で `AZURE_APP_SERVICE_PUBLISH_PROFILE` シークレットとして追加
 
-### 2. Set the App Service Name
+#### パブリッシュプロファイルについて
 
-1. Add the App Service name as the `AZURE_APP_SERVICE_NAME` secret in GitHub
-2. This should match the name shown in the Azure Portal
+パブリッシュプロファイル (`.publishsettings` ファイル) には以下の情報が含まれています：
 
-### 3. Configure App Service Settings
+**ファイル形式例:**
+```xml
+<?xml version="1.0" encoding="utf-8"?>
+<publishData>
+  <publishProfile 
+    publishMethod="MSDeploy"
+    publishUrl="your-app-name.scm.azurewebsites.net:443"
+    msdeploysite="your-app-name"
+    userName="$your-app-name"
+    userPWD="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+    destinationAppUrl="https://your-app-name.azurewebsites.net"
+    SQLServerDBConnectionString=""
+    mySQLDBConnectionString=""
+    hostingProviderForumLink=""
+    controlPanelLink="http://windows.azure.com"
+    webSystem="WebSites">
+  </publishProfile>
+</publishData>
+```
 
-Ensure your App Service has the following application settings configured:
+**重要な要素:**
+- `publishUrl`: デプロイメント先のサーバー URL (通常は `*.scm.azurewebsites.net`)
+- `msdeploysite`: App Service のサイト名
+- `userName`: デプロイメント用ユーザー名 (通常は `$your-app-name` 形式)
+- `userPWD`: デプロイメント用パスワード（自動生成された長いランダム文字列）
 
-#### Required Settings
-- `AzureAdB2C:ClientId`: Azure AD B2C client ID
-- `AzureAdB2C:TenantId`: Azure AD B2C tenant ID
-- `AzureAdB2C:ApiScopeUrl`: Azure AD B2C API scope URL
-- `ConnectionStrings:DefaultConnection`: MySQL connection string
-- `GOOGLE_CLOUD_PROJECT`: Google Cloud project ID for Vertex AI
+**GitHub シークレットへの設定方法:**
+1. `.publishsettings` ファイルをテキストエディタで開く
+2. **ファイル全体の内容**（XML全体）をコピー
+3. GitHub の Repository Settings → Secrets and variables → Actions で `AZURE_APP_SERVICE_PUBLISH_PROFILE` として貼り付け
+4. 改行や空白も含めて、XMLファイルの内容を完全にそのまま設定することが重要
+
+### 2. App Service 名の設定
+
+1. App Service 名を GitHub で `AZURE_APP_SERVICE_NAME` シークレットとして追加
+2. これは Azure ポータルに表示される名前と一致する必要があります
+
+### 3. App Service 設定の構成
+
+App Service に以下のアプリケーション設定が構成されていることを確認してください：
+
+#### 必須設定
+- `AzureAdB2C:ClientId`: Azure AD B2C クライアント ID
+- `AzureAdB2C:TenantId`: Azure AD B2C テナント ID
+- `AzureAdB2C:ApiScopeUrl`: Azure AD B2C API スコープ URL
+- `ConnectionStrings:DefaultConnection`: MySQL 接続文字列
+- `GOOGLE_CLOUD_PROJECT`: Vertex AI 用 Google Cloud プロジェクト ID
 - `KeyVault:VaultUri`: Azure Key Vault URI
-- `FrontendUrl`: Frontend URL for CORS configuration
+- `FrontendUrl`: CORS 構成用フロントエンド URL
 
-#### Optional Settings
-- `Gemini:ApiKey`: Default Gemini API key (fallback)
-- `REPLICATE_API_TOKEN`: Default Replicate API token (fallback)
+#### オプション設定
+- `Gemini:ApiKey`: デフォルト Gemini API キー（フォールバック）
+- `REPLICATE_API_TOKEN`: デフォルト Replicate API トークン（フォールバック）
 
-## Deployment Process
+## デプロイメントプロセス
 
-1. **Trigger**: Push to `main` branch or create/update PR
-2. **Frontend**: Always deployed to Static Web Apps (including PR previews)
-3. **Backend**: Only deployed to App Service on `main` branch pushes
-4. **Cleanup**: Preview deployments cleaned up when PRs are closed
+1. **トリガー**: `main` ブランチへのプッシュまたは PR の作成/更新
+2. **フロントエンド**: 常に Static Web Apps にデプロイ（PR プレビューを含む）
+3. **バックエンド**: `main` ブランチプッシュ時のみ App Service にデプロイ
+4. **クリーンアップ**: PR がクローズされた際にプレビューデプロイメントをクリーンアップ
 
-## Monitoring Deployment
+## デプロイメント監視
 
-1. Check GitHub Actions tab for workflow status
-2. Review deployment logs for any errors
-3. Verify application functionality after deployment
+1. GitHub Actions タブでワークフロー状況を確認
+2. エラーがないかデプロイメントログを確認
+3. デプロイメント後にアプリケーション機能を検証
 
-## Troubleshooting
+## トラブルシューティング
 
-### Common Issues
+### よくある問題
 
-1. **Build Failures**: Check .NET SDK version compatibility
-2. **Authentication Issues**: Verify Azure AD B2C settings
-3. **Database Connection**: Ensure connection string is correct
-4. **API Calls Failing**: Check CORS settings and frontend URL configuration
+1. **ビルド失敗**: .NET SDK バージョンの互換性を確認
+2. **認証問題**: Azure AD B2C 設定を検証
+3. **データベース接続**: 接続文字列が正しいことを確認
+4. **API 呼び出し失敗**: CORS 設定とフロントエンド URL 構成を確認
 
-### Debug Steps
+### デバッグ手順
 
-1. Check GitHub Actions logs for specific error messages
-2. Verify all required secrets are set correctly
-3. Ensure App Service configuration matches local development
-4. Test database connectivity from the App Service
+1. 具体的なエラーメッセージについて GitHub Actions ログを確認
+2. すべての必要なシークレットが正しく設定されていることを確認
+3. App Service 構成がローカル開発環境と一致することを確認
+4. App Service からのデータベース接続をテスト
 
-## Manual Deployment (Emergency)
+## 手動デプロイメント（緊急時）
 
-If automated deployment fails, you can deploy manually:
+自動デプロイメントが失敗した場合、手動でデプロイできます：
 
-### Backend
+### バックエンド
 ```bash
 cd backend
 dotnet publish -c Release
-# Upload publish folder to App Service via Azure Portal or Azure CLI
+# Azure ポータルまたは Azure CLI 経由で publish フォルダを App Service にアップロード
 ```
 
-### Frontend
+### フロントエンド
 ```bash
 cd frontend
 npm run build
-# Deploy dist folder to Static Web Apps via Azure Portal or Azure CLI
+# Azure ポータルまたは Azure CLI 経由で dist フォルダを Static Web Apps にデプロイ
 ```
