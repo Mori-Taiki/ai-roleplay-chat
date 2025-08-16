@@ -1,7 +1,55 @@
 import React from 'react';
-import FormField from './FormField';
 import { AiGenerationSettingsRequest } from '../models/AiGenerationSettings';
 import styles from '../pages/CharacterSetupPage.module.css';
+
+interface SimpleFormFieldProps {
+  label: string;
+  name: string;
+  value: string;
+  onChange: (value: string) => void;
+  placeholder?: string;
+  type?: 'text' | 'textarea';
+  rows?: number;
+}
+
+const SimpleFormField: React.FC<SimpleFormFieldProps> = ({ 
+  label, 
+  name, 
+  value, 
+  onChange, 
+  placeholder,
+  type = 'text',
+  rows = 3 
+}) => {
+  return (
+    <div className={styles.formField}>
+      <label htmlFor={name} className={styles.label}>
+        {label}
+      </label>
+      {type === 'textarea' ? (
+        <textarea
+          id={name}
+          name={name}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder={placeholder}
+          rows={rows}
+          className={styles.textarea}
+        />
+      ) : (
+        <input
+          id={name}
+          name={name}
+          type="text"
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder={placeholder}
+          className={styles.input}
+        />
+      )}
+    </div>
+  );
+};
 
 interface AiModelSettingsFormProps {
   aiSettings: AiGenerationSettingsRequest | null;
@@ -38,7 +86,7 @@ const AiModelSettingsForm: React.FC<AiModelSettingsFormProps> = ({
       )}
       
       <div className={styles.modelField}>
-        <FormField
+        <SimpleFormField
           label="チャット生成モデル"
           name="chatGenerationModel"
           value={aiSettings?.chatGenerationModel || ''}
@@ -48,7 +96,7 @@ const AiModelSettingsForm: React.FC<AiModelSettingsFormProps> = ({
       </div>
 
       <div className={styles.modelField}>
-        <FormField
+        <SimpleFormField
           label="画像プロンプト生成モデル"
           name="imagePromptGenerationModel"
           value={aiSettings?.imagePromptGenerationModel || ''}
@@ -58,7 +106,7 @@ const AiModelSettingsForm: React.FC<AiModelSettingsFormProps> = ({
       </div>
 
       <div className={styles.modelField}>
-        <FormField
+        <SimpleFormField
           label="画像生成モデル"
           name="imageGenerationModel"
           value={aiSettings?.imageGenerationModel || ''}
@@ -68,7 +116,7 @@ const AiModelSettingsForm: React.FC<AiModelSettingsFormProps> = ({
       </div>
 
       <div className={styles.modelField}>
-        <FormField
+        <SimpleFormField
           label="画像生成プロンプト指示"
           name="imageGenerationPromptInstruction"
           type="textarea"
