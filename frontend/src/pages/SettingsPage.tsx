@@ -1,10 +1,11 @@
 import React, { useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { useApiKeys } from '../hooks/useApiKeys';
-import { useUserSettings, UserSetting } from '../hooks/useUserSettings';
+import { useUserAiSettings } from '../hooks/useUserAiSettings';
 import { useAuth } from '../hooks/useAuth';
 import { useNotification } from '../hooks/useNotification';
 import { ModelSettingsForm, ModelSettingsFormData } from '../components/ModelSettingsForm';
+import { AiGenerationSettingsRequest } from '../models/AiGenerationSettings';
 import styles from './SettingsPage.module.css';
 
 interface ApiKeyForm {
@@ -17,7 +18,7 @@ const SUPPORTED_SERVICES = ['Gemini', 'Replicate'] as const;
 const SettingsPage: React.FC = () => {
   const { isAuthenticated } = useAuth();
   const { addNotification, removeNotification } = useNotification();
-  const { settings, isLoading, error, fetchUserSettings, updateUserSettings } = useUserSettings();
+  const { settings, isLoading, error, fetchUserAiSettings, updateUserAiSettings } = useUserAiSettings();
 
   const {
     registeredServices: registeredApiKeys,
@@ -38,25 +39,18 @@ const SettingsPage: React.FC = () => {
 
   useEffect(() => {
     if (isAuthenticated) {
-      fetchUserSettings();
+      fetchUserAiSettings();
       getUserApiKeys();
     }
-  }, [isAuthenticated, fetchUserSettings, getUserApiKeys]);
+  }, [isAuthenticated, fetchUserAiSettings, getUserApiKeys]);
 
   useEffect(() => {
     if (settings) {
       modelSettingsForm.reset({
-        geminiChatModel:
-          settings.find((s) => s.serviceType === 'Gemini' && s.settingKey === 'ChatModel')?.settingValue || '',
-        geminiImagePromptModel:
-          settings.find((s) => s.serviceType === 'Gemini' && s.settingKey === 'ImagePromptGenerationModel')
-            ?.settingValue || '',
-        replicateImageModel:
-          settings.find((s) => s.serviceType === 'Replicate' && s.settingKey === 'ImageGenerationVersion')
-            ?.settingValue || '',
-        geminiImagePromptInstruction:
-          settings.find((s) => s.serviceType === 'Gemini' && s.settingKey === 'ImagePromptInstruction')
-            ?.settingValue || '',
+        geminiChatModel: settings.chatGenerationModel || '',
+        geminiImagePromptModel: settings.imagePromptGenerationModel || '',
+        replicateImageModel: settings.imageGenerationModel || '',
+        geminiImagePromptInstruction: settings.imageGenerationPromptInstruction || '',
       });
     }
   }, [settings, modelSettingsForm.reset]);
@@ -108,14 +102,17 @@ const SettingsPage: React.FC = () => {
   };
 
   const handleModelSettingsSubmit = async (data: ModelSettingsFormData) => {
-    const settingsToUpdate: UserSetting[] = [
-      { serviceType: 'Gemini', settingKey: 'ChatModel', settingValue: data.geminiChatModel },
-      { serviceType: 'Gemini', settingKey: 'ImagePromptGenerationModel', settingValue: data.geminiImagePromptModel },
-      { serviceType: 'Replicate', settingKey: 'ImageGenerationVersion', settingValue: data.replicateImageModel },
-      { serviceType: 'Gemini', settingKey: 'ImagePromptInstruction', settingValue: data.geminiImagePromptInstruction },
-    ];
+    const settingsToUpdate: AiGenerationSettingsRequest = {
+      chatGenerationProvider: data.geminiChatModel ? 'Gemini' : null,
+      chatGenerationModel: data.geminiChatModel || null,
+      imagePromptGenerationProvider: data.geminiImagePromptModel ? 'Gemini' : null,
+      imagePromptGenerationModel: data.geminiImagePromptModel || null,
+      imageGenerationProvider: data.replicateImageModel ? 'Replicate' : null,
+      imageGenerationModel: data.replicateImageModel || null,
+      imageGenerationPromptInstruction: data.geminiImagePromptInstruction || null,
+    };
 
-    const success = await updateUserSettings(settingsToUpdate);
+    const success = await updateUserAiSettings(settingsToUpdate);
     if (success) {
       addNotification({ message: 'モデル設定が正常に更新されました。', type: 'success' });
     }
