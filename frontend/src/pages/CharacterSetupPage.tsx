@@ -8,7 +8,6 @@ import {
 } from 'react-hook-form'; // react-hook-form をインポート
 import { CreateCharacterProfileRequest } from '../models/CreateCharacterProfileRequest';
 import { UpdateCharacterProfileRequest } from '../models/UpdateCharacterProfileRequest';
-import { ModelSettingsFormData } from '../components/ModelSettingsForm';
 import { useCharacterProfile } from '../hooks/useCharacterProfile'; // カスタムフック
 import styles from './CharacterSetupPage.module.css';
 import FormField from '../components/FormField';
@@ -67,8 +66,6 @@ const CharacterSetupPage: React.FC = () => {
     reset, // フォーム値をリセット/初期化する関数
     watch, // 特定のフォーム値を監視する関数 (isSystemPromptCustomized で使用)
     formState: { errors, isSubmitting: isFormSubmitting }, // フォームの状態 (エラー、送信中かなど)
-    setValue, // 値を手動で設定する関数
-    getValues, // 現在のフォーム値を取得する関数
   } = useForm<CharacterFormData>({
     // デフォルト値を設定
     defaultValues: {
