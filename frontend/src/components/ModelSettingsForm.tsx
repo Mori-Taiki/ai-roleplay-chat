@@ -18,7 +18,6 @@ interface ModelSettingsFormProps {
 
 const ModelSettingsForm: React.FC<ModelSettingsFormProps> = ({ 
   register, 
-  watch, 
   showToggle = false, 
   showFallbackNote = false 
 }) => {
