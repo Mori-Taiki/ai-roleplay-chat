@@ -1,9 +1,11 @@
 using System.Text.Json;
 using AiRoleplayChat.Backend.Application.Contracts;
 using AiRoleplayChat.Backend.Application.Ports;
+using AiRoleplayChat.Backend.Data;
 using AiRoleplayChat.Backend.Domain.Entities;
 using AiRoleplayChat.Backend.Models;
 using AiRoleplayChat.Backend.Services;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 
@@ -18,7 +20,7 @@ public class GeminiTextAdapter : ITextModelPort
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly IConfiguration _config;
     private readonly IApiKeyService _apiKeyService;
-    private readonly IUserSettingsService _userSettingsService;
+    private readonly AppDbContext _context;
     private readonly ILogger<GeminiTextAdapter> _logger;
     private readonly string _defaultApiKey;
     private readonly JsonSerializerOptions _jsonSerializerOptions;
@@ -27,13 +29,13 @@ public class GeminiTextAdapter : ITextModelPort
         IHttpClientFactory httpClientFactory,
         IConfiguration configuration,
         IApiKeyService apiKeyService,
-        IUserSettingsService userSettingsService,
+        AppDbContext context,
         ILogger<GeminiTextAdapter> logger)
     {
         _httpClientFactory = httpClientFactory ?? throw new ArgumentNullException(nameof(httpClientFactory));
         _config = configuration ?? throw new ArgumentNullException(nameof(configuration));
         _apiKeyService = apiKeyService ?? throw new ArgumentNullException(nameof(apiKeyService));
-        _userSettingsService = userSettingsService ?? throw new ArgumentNullException(nameof(userSettingsService));
+        _context = context ?? throw new ArgumentNullException(nameof(context));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
         _defaultApiKey = _config["Gemini:ApiKey"] ?? throw new InvalidOperationException("Configuration missing: Gemini:ApiKey");
@@ -109,12 +111,19 @@ public class GeminiTextAdapter : ITextModelPort
             return defaultValue;
         }
 
-        var userSettings = await _userSettingsService.GetUserSettingsAsync(userId.Value);
-        var modelSetting = userSettings.FirstOrDefault(s => s.ServiceType == "Gemini" && s.SettingKey == settingKey);
+        var user = await _context.Users
+            .Include(u => u.AiSettings)
+            .FirstOrDefaultAsync(u => u.Id == userId.Value);
 
-        if (modelSetting != null && !string.IsNullOrEmpty(modelSetting.SettingValue))
+        if (user?.AiSettings != null)
         {
-            return modelSetting.SettingValue;
+            var aiSettings = user.AiSettings;
+            return settingKey switch
+            {
+                "ChatModel" => aiSettings.ChatGenerationModel ?? defaultValue,
+                "ImagePromptGenerationModel" => aiSettings.ImagePromptGenerationModel ?? defaultValue,
+                _ => defaultValue
+            };
         }
 
         return defaultValue;

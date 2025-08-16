@@ -4,7 +4,9 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using AiRoleplayChat.Backend.Application.Contracts;
 using AiRoleplayChat.Backend.Application.Ports;
+using AiRoleplayChat.Backend.Data;
 using AiRoleplayChat.Backend.Services;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 
@@ -37,7 +39,7 @@ public class ReplicateImageAdapter : IImageModelPort
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly IConfiguration _config;
     private readonly IApiKeyService _apiKeyService;
-    private readonly IUserSettingsService _userSettingsService;
+    private readonly AppDbContext _context;
     private readonly ILogger<ReplicateImageAdapter> _logger;
     private readonly string _defaultApiKey;
     private readonly string _defaultModelVersion;
@@ -49,13 +51,13 @@ public class ReplicateImageAdapter : IImageModelPort
         IHttpClientFactory httpClientFactory,
         IConfiguration configuration,
         IApiKeyService apiKeyService,
-        IUserSettingsService userSettingsService,
+        AppDbContext context,
         ILogger<ReplicateImageAdapter> logger)
     {
         _httpClientFactory = httpClientFactory ?? throw new ArgumentNullException(nameof(httpClientFactory));
         _config = configuration ?? throw new ArgumentNullException(nameof(configuration));
         _apiKeyService = apiKeyService ?? throw new ArgumentNullException(nameof(apiKeyService));
-        _userSettingsService = userSettingsService ?? throw new ArgumentNullException(nameof(userSettingsService));
+        _context = context ?? throw new ArgumentNullException(nameof(context));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
         _defaultApiKey = _config["REPLICATE_API_TOKEN"] ?? throw new InvalidOperationException("Configuration missing: REPLICATE_API_TOKEN");
@@ -84,11 +86,13 @@ public class ReplicateImageAdapter : IImageModelPort
                     apiKey = userApiKey;
                 }
 
-                var userSettings = await _userSettingsService.GetUserSettingsAsync(request.UserId.Value);
-                var replicateModelSetting = userSettings.FirstOrDefault(s => s.ServiceType == "Replicate" && s.SettingKey == "ImageGenerationVersion");
-                if (replicateModelSetting != null && !string.IsNullOrEmpty(replicateModelSetting.SettingValue))
+                var user = await _context.Users
+                    .Include(u => u.AiSettings)
+                    .FirstOrDefaultAsync(u => u.Id == request.UserId.Value, cancellationToken);
+                
+                if (user?.AiSettings?.ImageGenerationModel != null)
                 {
-                    modelVersion = replicateModelSetting.SettingValue;
+                    modelVersion = user.AiSettings.ImageGenerationModel;
                 }
             }
 

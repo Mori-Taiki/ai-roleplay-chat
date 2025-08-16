@@ -37,20 +37,17 @@ public interface ILlmRouter
 public class LlmRouter : ILlmRouter
 {
     private readonly IServiceProvider _serviceProvider;
-    private readonly IUserSettingsService _userSettingsService;
     private readonly IAiGenerationSettingsService _aiSettingsService;
     private readonly AppDbContext _context;
     private readonly ProviderOptions _providerOptions;
 
     public LlmRouter(
         IServiceProvider serviceProvider,
-        IUserSettingsService userSettingsService,
         IAiGenerationSettingsService aiSettingsService,
         AppDbContext context,
         IOptions<ProviderOptions> providerOptions)
     {
         _serviceProvider = serviceProvider ?? throw new ArgumentNullException(nameof(serviceProvider));
-        _userSettingsService = userSettingsService ?? throw new ArgumentNullException(nameof(userSettingsService));
         _aiSettingsService = aiSettingsService ?? throw new ArgumentNullException(nameof(aiSettingsService));
         _context = context ?? throw new ArgumentNullException(nameof(context));
         _providerOptions = providerOptions?.Value ?? throw new ArgumentNullException(nameof(providerOptions));

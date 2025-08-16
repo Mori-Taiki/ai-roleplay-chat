@@ -34,7 +34,8 @@ builder.Services.Configure<Microsoft.AspNetCore.Http.Json.JsonOptions>(options =
     options.SerializerOptions.PropertyNameCaseInsensitive = true; // JSONプロパティ名の大文字小文字を無視
 });
 
-builder.Services.AddScoped<IGeminiService, GeminiService>();
+// --- Legacy services (deprecated in favor of hexagonal architecture) ---
+// builder.Services.AddScoped<IGeminiService, GeminiService>();
 builder.Services.AddScoped<IBlobStorageService, BlobStorageService>();
 builder.Services.AddSingleton(provider =>
 {
@@ -47,12 +48,12 @@ builder.Services.AddSingleton(provider =>
     return new PredictionServiceClientBuilder { Endpoint = endpoint }.Build();
 });
 // builder.Services.AddScoped<IImagenService, ImagenService>();
-builder.Services.AddScoped<IImagenService, ReplicateService>();
+// builder.Services.AddScoped<IImagenService, ReplicateService>();
 builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddScoped<IChatMessageService, ChatMessageService>();
 builder.Services.AddScoped<IChatSessionService, ChatSessionService>();
 builder.Services.AddScoped<IApiKeyService, ApiKeyService>();
-builder.Services.AddScoped<IUserSettingsService, UserSettingsService>();
+// Removed IUserSettingsService - now handled by UserAiSettings controller directly
 builder.Services.AddScoped<IAiGenerationSettingsService, AiGenerationSettingsService>();
 
 // --- Hexagonal Architecture Services ---

@@ -10,6 +10,8 @@ public class AppDbContext : DbContext
     public DbSet<ChatMessage> ChatMessages { get; set; } = null!;
     public DbSet<ChatSession> ChatSessions { get; set; } = null!;
     public DbSet<User> Users { get; set; } = null!;
+    // [Obsolete] Deprecated in favor of AiGenerationSettings with SettingsType="User"
+    // Kept for backward compatibility through UserSettingsController
     public DbSet<UserSetting> UserSettings { get; set; } = null!;
     public DbSet<AiGenerationSettings> AiGenerationSettings { get; set; } = null!;
 
@@ -68,6 +70,7 @@ public class AppDbContext : DbContext
             entity.Property(e => e.Sender).HasMaxLength(10);
         });
 
+        // [Obsolete] UserSetting entity configuration - deprecated but kept for backward compatibility
         modelBuilder.Entity<UserSetting>(entity =>
         {
             entity.HasIndex(e => new { e.UserId, e.ServiceType, e.SettingKey }).IsUnique();
