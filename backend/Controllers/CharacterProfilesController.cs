@@ -63,15 +63,22 @@ public class CharacterProfilesController : BaseApiController
         // Create AI settings if provided
         int? aiSettingsId = null;
         if (request.AiSettings != null && 
-            (!string.IsNullOrEmpty(request.AiSettings.ChatGenerationModel) ||
+            (!string.IsNullOrEmpty(request.AiSettings.ChatGenerationProvider) ||
+             !string.IsNullOrEmpty(request.AiSettings.ChatGenerationModel) ||
+             !string.IsNullOrEmpty(request.AiSettings.ImagePromptGenerationProvider) ||
              !string.IsNullOrEmpty(request.AiSettings.ImagePromptGenerationModel) ||
+             !string.IsNullOrEmpty(request.AiSettings.ImageGenerationProvider) ||
              !string.IsNullOrEmpty(request.AiSettings.ImageGenerationModel) ||
              !string.IsNullOrEmpty(request.AiSettings.ImageGenerationPromptInstruction)))
         {
             var aiSettings = new AiGenerationSettings
             {
+                SettingsType = "Character",
+                ChatGenerationProvider = request.AiSettings.ChatGenerationProvider,
                 ChatGenerationModel = request.AiSettings.ChatGenerationModel,
+                ImagePromptGenerationProvider = request.AiSettings.ImagePromptGenerationProvider,
                 ImagePromptGenerationModel = request.AiSettings.ImagePromptGenerationModel,
+                ImageGenerationProvider = request.AiSettings.ImageGenerationProvider,
                 ImageGenerationModel = request.AiSettings.ImageGenerationModel,
                 ImageGenerationPromptInstruction = request.AiSettings.ImageGenerationPromptInstruction
             };
@@ -111,8 +118,12 @@ public class CharacterProfilesController : BaseApiController
             {
                 aiSettingsResponse = new AiGenerationSettingsResponse(
                     aiSettings.Id,
+                    aiSettings.SettingsType,
+                    aiSettings.ChatGenerationProvider,
                     aiSettings.ChatGenerationModel,
+                    aiSettings.ImagePromptGenerationProvider,
                     aiSettings.ImagePromptGenerationModel,
+                    aiSettings.ImageGenerationProvider,
                     aiSettings.ImageGenerationModel,
                     aiSettings.ImageGenerationPromptInstruction
                 );
@@ -174,8 +185,12 @@ public class CharacterProfilesController : BaseApiController
                 {
                     aiSettingsResponse = new AiGenerationSettingsResponse(
                         character.AiSettings.Id,
+                        character.AiSettings.SettingsType,
+                        character.AiSettings.ChatGenerationProvider,
                         character.AiSettings.ChatGenerationModel,
+                        character.AiSettings.ImagePromptGenerationProvider,
                         character.AiSettings.ImagePromptGenerationModel,
+                        character.AiSettings.ImageGenerationProvider,
                         character.AiSettings.ImageGenerationModel,
                         character.AiSettings.ImageGenerationPromptInstruction
                     );
@@ -231,8 +246,12 @@ public class CharacterProfilesController : BaseApiController
         {
             aiSettingsResponse = new AiGenerationSettingsResponse(
                 profile.AiSettings.Id,
+                profile.AiSettings.SettingsType,
+                profile.AiSettings.ChatGenerationProvider,
                 profile.AiSettings.ChatGenerationModel,
+                profile.AiSettings.ImagePromptGenerationProvider,
                 profile.AiSettings.ImagePromptGenerationModel,
+                profile.AiSettings.ImageGenerationProvider,
                 profile.AiSettings.ImageGenerationModel,
                 profile.AiSettings.ImageGenerationPromptInstruction
             );
@@ -300,8 +319,11 @@ public class CharacterProfilesController : BaseApiController
                 var existingAiSettings = await _aiSettingsService.GetSettingsAsync(existingProfile.AiSettingsId.Value);
                 if (existingAiSettings != null)
                 {
+                    existingAiSettings.ChatGenerationProvider = request.AiSettings.ChatGenerationProvider;
                     existingAiSettings.ChatGenerationModel = request.AiSettings.ChatGenerationModel;
+                    existingAiSettings.ImagePromptGenerationProvider = request.AiSettings.ImagePromptGenerationProvider;
                     existingAiSettings.ImagePromptGenerationModel = request.AiSettings.ImagePromptGenerationModel;
+                    existingAiSettings.ImageGenerationProvider = request.AiSettings.ImageGenerationProvider;
                     existingAiSettings.ImageGenerationModel = request.AiSettings.ImageGenerationModel;
                     existingAiSettings.ImageGenerationPromptInstruction = request.AiSettings.ImageGenerationPromptInstruction;
                     await _aiSettingsService.CreateOrUpdateSettingsAsync(existingAiSettings);
@@ -312,8 +334,12 @@ public class CharacterProfilesController : BaseApiController
                 // Create new AI settings
                 var newAiSettings = new AiGenerationSettings
                 {
+                    SettingsType = "Character",
+                    ChatGenerationProvider = request.AiSettings.ChatGenerationProvider,
                     ChatGenerationModel = request.AiSettings.ChatGenerationModel,
+                    ImagePromptGenerationProvider = request.AiSettings.ImagePromptGenerationProvider,
                     ImagePromptGenerationModel = request.AiSettings.ImagePromptGenerationModel,
+                    ImageGenerationProvider = request.AiSettings.ImageGenerationProvider,
                     ImageGenerationModel = request.AiSettings.ImageGenerationModel,
                     ImageGenerationPromptInstruction = request.AiSettings.ImageGenerationPromptInstruction
                 };

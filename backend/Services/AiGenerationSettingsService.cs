@@ -46,8 +46,11 @@ namespace AiRoleplayChat.Backend.Services
                     throw new ArgumentException($"AI Generation Settings with ID {settings.Id} not found");
                 }
 
+                existing.ChatGenerationProvider = settings.ChatGenerationProvider;
                 existing.ChatGenerationModel = settings.ChatGenerationModel;
+                existing.ImagePromptGenerationProvider = settings.ImagePromptGenerationProvider;
                 existing.ImagePromptGenerationModel = settings.ImagePromptGenerationModel;
+                existing.ImageGenerationProvider = settings.ImageGenerationProvider;
                 existing.ImageGenerationModel = settings.ImageGenerationModel;
                 existing.ImageGenerationPromptInstruction = settings.ImageGenerationPromptInstruction;
                 existing.UpdatedAt = DateTime.UtcNow;

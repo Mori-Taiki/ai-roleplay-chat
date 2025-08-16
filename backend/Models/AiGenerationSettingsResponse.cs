@@ -5,8 +5,12 @@ namespace AiRoleplayChat.Backend.Models;
 /// </summary>
 public record AiGenerationSettingsResponse(
     int Id,
+    string SettingsType,
+    string? ChatGenerationProvider,
     string? ChatGenerationModel,
+    string? ImagePromptGenerationProvider,
     string? ImagePromptGenerationModel,
+    string? ImageGenerationProvider,
     string? ImageGenerationModel,
     string? ImageGenerationPromptInstruction
 );

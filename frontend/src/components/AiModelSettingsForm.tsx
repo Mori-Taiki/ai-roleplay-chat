@@ -8,8 +8,9 @@ interface SimpleFormFieldProps {
   value: string;
   onChange: (value: string) => void;
   placeholder?: string;
-  type?: 'text' | 'textarea';
+  type?: 'text' | 'textarea' | 'select';
   rows?: number;
+  options?: { value: string; label: string }[];
 }
 
 const SimpleFormField: React.FC<SimpleFormFieldProps> = ({ 
@@ -19,7 +20,8 @@ const SimpleFormField: React.FC<SimpleFormFieldProps> = ({
   onChange, 
   placeholder,
   type = 'text',
-  rows = 3 
+  rows = 3,
+  options = []
 }) => {
   return (
     <div className={styles.formField}>
@@ -36,6 +38,21 @@ const SimpleFormField: React.FC<SimpleFormFieldProps> = ({
           rows={rows}
           className={styles.textarea}
         />
+      ) : type === 'select' ? (
+        <select
+          id={name}
+          name={name}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          className={styles.select}
+        >
+          <option value="">選択してください</option>
+          {options.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </select>
       ) : (
         <input
           id={name}
@@ -55,17 +72,24 @@ interface AiModelSettingsFormProps {
   aiSettings: AiGenerationSettingsRequest | null;
   onSettingsChange: (settings: AiGenerationSettingsRequest | null) => void;
   showFallbackNote?: boolean;
+  showToggleButton?: boolean;
 }
 
 const AiModelSettingsForm: React.FC<AiModelSettingsFormProps> = ({ 
   aiSettings, 
   onSettingsChange, 
-  showFallbackNote = true 
+  showFallbackNote = true,
+  showToggleButton = false
 }) => {
+  const [isVisible, setIsVisible] = React.useState(!showToggleButton);
+
   const handleFieldChange = (field: keyof AiGenerationSettingsRequest, value: string) => {
     const newSettings = {
+      chatGenerationProvider: aiSettings?.chatGenerationProvider || null,
       chatGenerationModel: aiSettings?.chatGenerationModel || null,
+      imagePromptGenerationProvider: aiSettings?.imagePromptGenerationProvider || null,
       imagePromptGenerationModel: aiSettings?.imagePromptGenerationModel || null,
+      imageGenerationProvider: aiSettings?.imageGenerationProvider || null,
       imageGenerationModel: aiSettings?.imageGenerationModel || null,
       imageGenerationPromptInstruction: aiSettings?.imageGenerationPromptInstruction || null,
       ...{ [field]: value || null }
@@ -76,43 +100,106 @@ const AiModelSettingsForm: React.FC<AiModelSettingsFormProps> = ({
     onSettingsChange(hasAnyValue ? newSettings : null);
   };
 
+  const providerOptions = [
+    { value: 'Gemini', label: 'Gemini' },
+    { value: 'Replicate', label: 'Replicate' }
+  ];
+
+  if (showToggleButton && !isVisible) {
+    return (
+      <div className={styles.modelSection}>
+        <button 
+          type="button"
+          className={styles.toggleButton}
+          onClick={() => setIsVisible(true)}
+        >
+          生成AIを個別に設定する
+        </button>
+      </div>
+    );
+  }
+
   return (
     <div className={styles.modelSection}>
-      <h3>AIモデル設定</h3>
+      <div className={styles.sectionHeader}>
+        <h3>AIモデル設定</h3>
+        {showToggleButton && (
+          <button 
+            type="button"
+            className={styles.toggleButton}
+            onClick={() => setIsVisible(false)}
+          >
+            設定を隠す
+          </button>
+        )}
+      </div>
       {showFallbackNote && (
         <p className={styles.fallbackNote}>
           未設定の場合は、ユーザーのグローバル設定またはシステムデフォルトが使用されます
         </p>
       )}
       
-      <div className={styles.modelField}>
-        <SimpleFormField
-          label="チャット生成モデル"
-          name="chatGenerationModel"
-          value={aiSettings?.chatGenerationModel || ''}
-          onChange={(value) => handleFieldChange('chatGenerationModel', value)}
-          placeholder="例: gemini-1.5-flash-latest"
-        />
+      <div className={styles.modelFieldGroup}>
+        <h4 className={styles.fieldGroupTitle}>チャット生成</h4>
+        <div className={styles.providerModelRow}>
+          <SimpleFormField
+            label="プロバイダー"
+            name="chatGenerationProvider"
+            type="select"
+            value={aiSettings?.chatGenerationProvider || ''}
+            onChange={(value) => handleFieldChange('chatGenerationProvider', value)}
+            options={providerOptions}
+          />
+          <SimpleFormField
+            label="モデル"
+            name="chatGenerationModel"
+            value={aiSettings?.chatGenerationModel || ''}
+            onChange={(value) => handleFieldChange('chatGenerationModel', value)}
+            placeholder="例: gemini-1.5-flash-latest"
+          />
+        </div>
       </div>
 
-      <div className={styles.modelField}>
-        <SimpleFormField
-          label="画像プロンプト生成モデル"
-          name="imagePromptGenerationModel"
-          value={aiSettings?.imagePromptGenerationModel || ''}
-          onChange={(value) => handleFieldChange('imagePromptGenerationModel', value)}
-          placeholder="例: gemini-1.5-flash-latest"
-        />
+      <div className={styles.modelFieldGroup}>
+        <h4 className={styles.fieldGroupTitle}>画像プロンプト生成</h4>
+        <div className={styles.providerModelRow}>
+          <SimpleFormField
+            label="プロバイダー"
+            name="imagePromptGenerationProvider"
+            type="select"
+            value={aiSettings?.imagePromptGenerationProvider || ''}
+            onChange={(value) => handleFieldChange('imagePromptGenerationProvider', value)}
+            options={providerOptions}
+          />
+          <SimpleFormField
+            label="モデル"
+            name="imagePromptGenerationModel"
+            value={aiSettings?.imagePromptGenerationModel || ''}
+            onChange={(value) => handleFieldChange('imagePromptGenerationModel', value)}
+            placeholder="例: gemini-1.5-flash-latest"
+          />
+        </div>
       </div>
 
-      <div className={styles.modelField}>
-        <SimpleFormField
-          label="画像生成モデル"
-          name="imageGenerationModel"
-          value={aiSettings?.imageGenerationModel || ''}
-          onChange={(value) => handleFieldChange('imageGenerationModel', value)}
-          placeholder="例: black-forest-labs/flux-1-dev"
-        />
+      <div className={styles.modelFieldGroup}>
+        <h4 className={styles.fieldGroupTitle}>画像生成</h4>
+        <div className={styles.providerModelRow}>
+          <SimpleFormField
+            label="プロバイダー"
+            name="imageGenerationProvider"
+            type="select"
+            value={aiSettings?.imageGenerationProvider || ''}
+            onChange={(value) => handleFieldChange('imageGenerationProvider', value)}
+            options={providerOptions}
+          />
+          <SimpleFormField
+            label="モデル"
+            name="imageGenerationModel"
+            value={aiSettings?.imageGenerationModel || ''}
+            onChange={(value) => handleFieldChange('imageGenerationModel', value)}
+            placeholder="例: black-forest-labs/flux-1-dev"
+          />
+        </div>
       </div>
 
       <div className={styles.modelField}>

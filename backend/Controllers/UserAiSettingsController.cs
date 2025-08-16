@@ -48,8 +48,12 @@ public class UserAiSettingsController : BaseApiController
 
         var response = new AiGenerationSettingsResponse(
             user.AiSettings.Id,
+            user.AiSettings.SettingsType,
+            user.AiSettings.ChatGenerationProvider,
             user.AiSettings.ChatGenerationModel,
+            user.AiSettings.ImagePromptGenerationProvider,
             user.AiSettings.ImagePromptGenerationModel,
+            user.AiSettings.ImageGenerationProvider,
             user.AiSettings.ImageGenerationModel,
             user.AiSettings.ImageGenerationPromptInstruction
         );
@@ -84,8 +88,11 @@ public class UserAiSettingsController : BaseApiController
         {
             // Update existing settings
             aiSettings = user.AiSettings;
+            aiSettings.ChatGenerationProvider = request.ChatGenerationProvider;
             aiSettings.ChatGenerationModel = request.ChatGenerationModel;
+            aiSettings.ImagePromptGenerationProvider = request.ImagePromptGenerationProvider;
             aiSettings.ImagePromptGenerationModel = request.ImagePromptGenerationModel;
+            aiSettings.ImageGenerationProvider = request.ImageGenerationProvider;
             aiSettings.ImageGenerationModel = request.ImageGenerationModel;
             aiSettings.ImageGenerationPromptInstruction = request.ImageGenerationPromptInstruction;
             aiSettings.UpdatedAt = DateTime.UtcNow;
@@ -95,8 +102,12 @@ public class UserAiSettingsController : BaseApiController
             // Create new settings
             aiSettings = new AiGenerationSettings
             {
+                SettingsType = "User",
+                ChatGenerationProvider = request.ChatGenerationProvider,
                 ChatGenerationModel = request.ChatGenerationModel,
+                ImagePromptGenerationProvider = request.ImagePromptGenerationProvider,
                 ImagePromptGenerationModel = request.ImagePromptGenerationModel,
+                ImageGenerationProvider = request.ImageGenerationProvider,
                 ImageGenerationModel = request.ImageGenerationModel,
                 ImageGenerationPromptInstruction = request.ImageGenerationPromptInstruction
             };
@@ -108,8 +119,12 @@ public class UserAiSettingsController : BaseApiController
 
         var response = new AiGenerationSettingsResponse(
             aiSettings.Id,
+            aiSettings.SettingsType,
+            aiSettings.ChatGenerationProvider,
             aiSettings.ChatGenerationModel,
+            aiSettings.ImagePromptGenerationProvider,
             aiSettings.ImagePromptGenerationModel,
+            aiSettings.ImageGenerationProvider,
             aiSettings.ImageGenerationModel,
             aiSettings.ImageGenerationPromptInstruction
         );

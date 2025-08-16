@@ -426,12 +426,12 @@ const CharacterSetupPage: React.FC = () => {
 
         {/* --- AIモデル設定 --- */}
         <div className={styles.formGroup}>
-          <h3 className={styles.sectionTitle}>AIモデル設定</h3>
         {/* AI Model Settings */}
         <AiModelSettingsForm 
           aiSettings={getValues('aiSettings')}
           onSettingsChange={(settings) => setValue('aiSettings', settings)}
           showFallbackNote={true}
+          showToggleButton={true}
         />
         </div>
 

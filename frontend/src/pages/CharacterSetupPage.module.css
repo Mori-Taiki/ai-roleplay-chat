@@ -238,6 +238,60 @@
     box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
   }
 
+  /* New styles for toggle functionality and provider/model layout */
+  .toggleButton {
+    padding: 0.5rem 1rem;
+    background-color: #007bff;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.9rem;
+    transition: background-color 0.2s;
+  }
+
+  .toggleButton:hover {
+    background-color: #0056b3;
+  }
+
+  .sectionHeader {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+  }
+
+  .sectionHeader h3 {
+    margin: 0;
+  }
+
+  .modelFieldGroup {
+    margin-bottom: 1.5rem;
+    padding: 1rem;
+    border: 1px solid #e0e0e0;
+    border-radius: 6px;
+    background-color: #fafafa;
+  }
+
+  .fieldGroupTitle {
+    margin: 0 0 1rem 0;
+    font-size: 1rem;
+    font-weight: 600;
+    color: #495057;
+    border-bottom: 1px solid #dee2e6;
+    padding-bottom: 0.5rem;
+  }
+
+  .providerModelRow {
+    display: flex;
+    gap: 1rem;
+    align-items: end;
+  }
+
+  .providerModelRow .formField {
+    flex: 1;
+  }
+
   @media (max-width: 768px) {
     .providerRow {
       flex-direction: column;
@@ -247,5 +301,16 @@
     .sectionTitle {
       margin-top: 1.5rem;
       font-size: 1.1rem;
+    }
+
+    .providerModelRow {
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+
+    .sectionHeader {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 0.5rem;
     }
   }
